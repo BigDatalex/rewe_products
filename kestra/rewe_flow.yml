@@ -1,0 +1,30 @@
+id: example
+namespace: rewe
+
+tasks:
+  - id: python_commands
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: "splendid-parsec-449218-j6-6de2b711f9d0.json"
+    containerImage: mcr.microsoft.com/playwright/python:v1.50.0-jammy
+    outputFiles:
+      - "*.json"
+    beforeCommands:
+      - pip install playwright google-cloud-storage
+    commands:
+      - python extract-rewe-api.py
+
+  - id: python_transform
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: "splendid-parsec-449218-j6-6de2b711f9d0.json"
+    containerImage: python:3.11
+    beforeCommands:
+      - pip install google-cloud-bigquery-storage dlt[bigquery]
+    commands:
+      - python transform-json.py
+    logLevel: DEBUG  # Enable debug logging for this task
