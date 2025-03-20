@@ -10,8 +10,14 @@ select
     _embedded__listing__pricing__base_unit__kg as listing_base_unit_kg,  
     _embedded__listing__pricing__discount__regular_price as listing_regular_price,  
     _embedded__listing__pricing__discount__discount_rate as listing_discount_rate,  
-    _embedded__listing__pricing__discount__valid_to as listing_discount_valid_to,  
-    _embedded__listing__pricing__grammage as listing_grammage,  
+    CAST(
+  PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', 
+    REPLACE(_embedded__listing__pricing__discount__valid_to, 'CET', '+01:00')
+  ) AS TIMESTAMP
+) AS listing_discount_valid_to,
+    --_embedded__listing__pricing__discount__valid_to as listing_discount_valid_to,  
+    _embedded__listing__pricing__grammage as listing_grammage,
+    REGEXP_EXTRACT(_embedded__listing__pricing__grammage, r'^(.*?)(?:\s\(1\s(?:kg|l))') AS extracted_grammage,  
     _embedded__listing__limitations__order_limit as listing_order_limit, 
     _embedded__store__id as store_id,  
     _embedded__store__version as store_version,  
