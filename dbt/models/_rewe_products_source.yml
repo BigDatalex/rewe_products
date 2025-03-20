@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: rewe_products
+    database: splendid-parsec-449218-j6
+    schema: rewe_products_data
+    tables:
+      - name: rewe_products
+      - name: rewe_products___embedded__articles
+      - name: rewe_products___embedded__categories
+      - name: rewe_products__media__images
