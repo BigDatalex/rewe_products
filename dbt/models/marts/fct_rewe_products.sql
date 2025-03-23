@@ -29,7 +29,10 @@ final as (
     on rewe_products._dlt_id=rewe_articles._dlt_parent_id
     where rewe_products.category_path not like "Tierbedarf%" and
     rewe_products.category_path not like "Küche & Haushalt%" and
-    rewe_products.category_path not like "Drogerie & Kosmetik%"
+    rewe_products.category_path not like "Drogerie & Kosmetik%" and
+    rewe_products.category_path not like "Haus & Freizeit%" and
+    rewe_products.category_path not like "Babybedarf%" and
+    rewe_products.category_path not like "Baby & Kind%" 
 )
 
 select * from final
