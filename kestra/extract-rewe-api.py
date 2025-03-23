@@ -1,3 +1,5 @@
+import time
+
 from playwright.sync_api import sync_playwright
 from google.cloud import storage
 import datetime
@@ -5,7 +7,7 @@ import os
 import json
 
 # Constants
-BASE_URL = "https://shop.rewe.de/api/products?attribute=discounted&objectsPerPage=40&page={page}&search=%2A&sorting=RELEVANCE_DESC&serviceTypes=DELIVERY&market=240557&debug=false&autocorrect=true"
+BASE_URL_TEMPLATE = "https://shop.rewe.de/api/products?objectsPerPage=250&page={page}&search=%2A&sorting=RELEVANCE_DESC&serviceTypes=DELIVERY&market=240557&debug=false&autocorrect=true"
 BUCKET_NAME = "rewe_products"
 TIMESTAMP = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 FOLDER_NAME = f"rewe_products/{TIMESTAMP}"
@@ -45,7 +47,7 @@ def fetch_data():
         page = context.new_page()
 
         # Fetch the first page to determine total pages
-        response = page.goto(BASE_URL.format(page=1))
+        response = page.goto(BASE_URL_TEMPLATE.format(page=1))
         if not response.ok:
             raise Exception(f"Failed to fetch data: {response.status}")
 
@@ -60,7 +62,8 @@ def fetch_data():
 
         # Fetch and process remaining pages
         for page_num in range(2, total_pages + 1):
-            response = page.goto(BASE_URL.format(page=page_num))
+            time.sleep(1)
+            response = page.goto(BASE_URL_TEMPLATE.format(page=page_num))
             if not response.ok:
                 print(f"Failed to fetch page {page_num}: {response.status}")
                 continue
