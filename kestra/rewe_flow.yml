@@ -8,7 +8,7 @@ tasks:
       enabled: true
     env:
       GOOGLE_APPLICATION_CREDENTIALS: "splendid-parsec-449218-j6-6de2b711f9d0.json"
-    containerImage: mcr.microsoft.com/playwright/python:v1.50.0-jammy
+    containerImage: mcr.microsoft.com/playwright/python:v1.51.0-jammy
     outputFiles:
       - "*.json"
     beforeCommands:
