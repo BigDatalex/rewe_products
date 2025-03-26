@@ -11,10 +11,14 @@ select
     _embedded__listing__pricing__discount__regular_price as listing_regular_price,  
     _embedded__listing__pricing__discount__discount_rate as listing_discount_rate,  
     CAST(
-  PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', 
-    REPLACE(_embedded__listing__pricing__discount__valid_to, 'CET', '+01:00')
-  ) AS TIMESTAMP
-) AS listing_discount_valid_to,
+    PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', 
+        CASE 
+        WHEN _embedded__listing__pricing__discount__valid_to LIKE '%CET%' THEN REPLACE(_embedded__listing__pricing__discount__valid_to, 'CET', '+01:00')
+        WHEN _embedded__listing__pricing__discount__valid_to LIKE '%CEST%' THEN REPLACE(_embedded__listing__pricing__discount__valid_to, 'CEST', '+02:00')
+        ELSE _embedded__listing__pricing__discount__valid_to
+        END
+    ) AS TIMESTAMP
+    ) AS listing_discount_valid_to,
     --_embedded__listing__pricing__discount__valid_to as listing_discount_valid_to,  
     _embedded__listing__pricing__grammage as listing_grammage,
     REGEXP_EXTRACT(_embedded__listing__pricing__grammage, r'^(.*?)(?:\s\(1\s(?:kg|l))') AS extracted_grammage,  

@@ -9,3 +9,6 @@ sources:
       - name: rewe_products___embedded__articles
       - name: rewe_products___embedded__categories
       - name: rewe_products__media__images
+      - name: _dlt_loads
+      - name: _dlt_pipeline_state
+      - name: _dlt_version
