@@ -2,7 +2,7 @@ id: example
 namespace: rewe
 
 tasks:
-  - id: python_commands
+  - id: python_extract
     type: io.kestra.plugin.scripts.python.Commands
     namespaceFiles:
       enabled: true
