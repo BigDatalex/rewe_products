@@ -6,6 +6,10 @@ rewe_articles as(
     select * from {{ ref('stg_rewe_products_articles') }}
 ),
 
+rewe_images as (
+    select * from {{ ref('stg_rewe_images') }}
+),
+
 dlt_loads as (
     select* from {{ ref('stg_dlt_loads') }}
 ),
@@ -28,10 +32,13 @@ final as (
         rewe_articles.listing_discount_valid_to,
         rewe_articles.listing_grammage,
         rewe_articles.extracted_grammage,
+        rewe_images.image_link,
         dlt_loads.inserted_at
     from rewe_products
     join rewe_articles
     on rewe_products._dlt_id=rewe_articles._dlt_parent_id
+    join rewe_images
+    on rewe_products._dlt_id=rewe_images._dlt_parent_id
     join dlt_loads
     on rewe_products._dlt_load_id=dlt_loads.load_id
     where rewe_products.category_path not like "Tierbedarf%" and
