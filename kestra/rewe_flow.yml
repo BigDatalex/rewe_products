@@ -59,7 +59,7 @@ tasks:
         outputs:
           dev:
             type: bigquery
-            dataset: rewe_products_data # this refers to the schema in google big query
+            dataset: rewe_products # this refers to the target schema in google big query
             project: splendid-parsec-449218-j6
             location: US
             keyfile: "splendid-parsec-449218-j6-6de2b711f9d0.json"
