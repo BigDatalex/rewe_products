@@ -2,7 +2,7 @@ id: example
 namespace: rewe
 
 tasks:
-  - id: python_extract
+  - id: download_json
     type: io.kestra.plugin.scripts.python.Commands
     namespaceFiles:
       enabled: true
@@ -15,8 +15,9 @@ tasks:
       - pip install playwright google-cloud-storage
     commands:
       - python extract-rewe-api.py
+    disabled: false
 
-  - id: python_transform
+  - id: dlt-load
     type: io.kestra.plugin.scripts.python.Commands
     namespaceFiles:
       enabled: true
@@ -28,3 +29,44 @@ tasks:
     commands:
       - python transform-json.py
     logLevel: DEBUG  # Enable debug logging for this task
+    disabled: false
+
+  - id: cloneRepository
+    type: io.kestra.plugin.git.Clone
+    url: https://github.com/bigdatalex/rewe_products
+    branch: main
+    directory: dbt
+    disabled: false
+
+  - id: dbt-build
+    type: io.kestra.plugin.dbt.cli.DbtCLI
+    env:
+      DBT_DATABASE: "splendid-parsec-449218-j6"
+      DBT_SCHEMA: rewe_products_data
+    namespaceFiles:
+      enabled: true
+    containerImage: ghcr.io/kestra-io/dbt-bigquery:latest
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+    commands:
+      - dbt deps
+      - dbt build
+    storeManifest:
+      key: manifest.json
+      namespace: "{{ flow.namespace }}"
+    profiles: |
+      default:
+        outputs:
+          dev:
+            type: bigquery
+            dataset: rewe_products_data # this refers to the schema in google big query
+            project: splendid-parsec-449218-j6
+            location: US
+            keyfile: "splendid-parsec-449218-j6-6de2b711f9d0.json"
+            method: service-account
+            priority: interactive
+            threads: 16
+            timeout_seconds: 300
+            fixed_retries: 1
+        target: dev
+    disabled: false
