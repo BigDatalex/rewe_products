@@ -53,3 +53,11 @@ Dashboard link: https://lookerstudio.google.com/reporting/8faef706-3516-4be4-82b
 - On the bottom you can see a table of the discounted products ordered by discount.
 ![DBT Lineage](images/dashboard.png)
 
+### Reproducibility
+In order to deploy the pipeline yourself you need to follow the following steps:
+1. Clone the github repo.
+2. Create GCP Storage Bucket and Service account with Storage Admin rights and BigQuery Database access rights.
+3. Deploy kestra: Navigate to `\kestra` and execute `docker-compose up -d`.
+4. Upload the kestra flow and python scripts into the flows namespace.
+5. Upload the Service Account JSON with your Google Credentials. The filename should be the same as `splendid-parsec-449218-j6-6de2b711f9d0.json`.
+6. Run the flow `rewe-flow`.
