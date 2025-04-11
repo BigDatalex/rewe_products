@@ -22,7 +22,6 @@ The pipeline could be **stream** or **batch**. I have chosen a Batch data pipeli
 * **Infrastructure as code (IaC)**: None
 * **Workflow orchestration**: [Kestra](https://kestra.io/)
 * **Data Warehouse**: BigQuery
-* **Batch processing**: None
 * **Dashboard**: Google Data Studio / Looker
 
 ![Architecture](images/architecture.png)
