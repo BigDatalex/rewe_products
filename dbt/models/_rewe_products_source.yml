@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: rewe_products
-    database: splendid-parsec-449218-j6
+    database: reweproducts
     schema: rewe_products_data
     tables:
       - name: rewe_products
