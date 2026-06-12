@@ -8,7 +8,7 @@ import json
 
 # Constants
 BASE_URL_TEMPLATE = "https://shop.rewe.de/api/products?objectsPerPage=250&page={page}&search=%2A&sorting=RELEVANCE_DESC&serviceTypes=DELIVERY&market=240557&debug=false&autocorrect=true"
-BUCKET_NAME = "rewe_products"
+BUCKET_NAME = "rewe_products_bucket"
 TIMESTAMP = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 FOLDER_NAME = f"rewe_products/{TIMESTAMP}"
 FILE_NAME_TEMPLATE = "rewe_api_response_page_{page}.json"
