@@ -7,8 +7,8 @@ tasks:
     namespaceFiles:
       enabled: true
     env:
-      GOOGLE_APPLICATION_CREDENTIALS: "splendid-parsec-449218-j6-6de2b711f9d0.json"
-    containerImage: mcr.microsoft.com/playwright/python:v1.51.0-jammy
+      GOOGLE_APPLICATION_CREDENTIALS: "splendid-parsec-449218-j6-6de2b711f9d0_2.json"
+    containerImage: mcr.microsoft.com/playwright/python:v1.60.0-jammy
     outputFiles:
       - "*.json"
     beforeCommands:
@@ -22,7 +22,8 @@ tasks:
     namespaceFiles:
       enabled: true
     env:
-      GOOGLE_APPLICATION_CREDENTIALS: "splendid-parsec-449218-j6-6de2b711f9d0.json"
+      GOOGLE_APPLICATION_CREDENTIALS: "splendid-parsec-449218-j6-6de2b711f9d0_2.json"
+      DESTINATION__BIGQUERY__LOCATION: "europe-west3"
     containerImage: python:3.11
     beforeCommands:
       - pip install google-cloud-bigquery-storage dlt[bigquery]
@@ -33,7 +34,7 @@ tasks:
 
   - id: cloneRepository
     type: io.kestra.plugin.git.Clone
-    url: https://github.com/bigdatalex/rewe_products
+    url: https://BigDatalex:<TOKEN>@github.com/BigDatalex/rewe_products
     branch: main
     directory: dbt
     disabled: false
@@ -41,7 +42,7 @@ tasks:
   - id: dbt-build
     type: io.kestra.plugin.dbt.cli.DbtCLI
     env:
-      DBT_DATABASE: "splendid-parsec-449218-j6"
+      DBT_DATABASE: "reweproducts"
       DBT_SCHEMA: rewe_products_data
     namespaceFiles:
       enabled: true
@@ -49,6 +50,7 @@ tasks:
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
     commands:
+      - dbt clean
       - dbt deps
       - dbt build
     storeManifest:
@@ -60,9 +62,9 @@ tasks:
           dev:
             type: bigquery
             dataset: rewe_products # this refers to the target schema in google big query
-            project: splendid-parsec-449218-j6
-            location: US
-            keyfile: "splendid-parsec-449218-j6-6de2b711f9d0.json"
+            project: reweproducts
+            location: europe-west3
+            keyfile: "splendid-parsec-449218-j6-6de2b711f9d0_2.json"
             method: service-account
             priority: interactive
             threads: 16
