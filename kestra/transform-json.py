@@ -3,7 +3,7 @@ from datetime import datetime
 import dlt
 import json
 
-BUCKET_NAME = "rewe_products"
+BUCKET_NAME = "rewe_products_bucket"
 FOLDER_PREFIX = "rewe_products/"  # Ensure the prefix ends with a slash
 
 def list_directories_and_find_latest():
