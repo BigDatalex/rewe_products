@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install google-cloud-bigquery pandas
+        run: pip install google-cloud-bigquery pandas db-dtypes
 
       - name: GCP Credentials einrichten
         run: |
