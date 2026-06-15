@@ -79,26 +79,32 @@ def main():
         else:
             on_offer = False
 
+        import math, pandas as pd
+        def safe(val):
+            try:
+                return "" if val is None or (isinstance(val, float) and math.isnan(val)) else str(val)
+            except: return ""
+
         products.append({
             "id":           str(row["product_id"]),
             "name":         row["product_name"],
-            "brand":        row["brand"] if row["brand"] else "",
-            "cat1":         row["category_level_1"] if row["category_level_1"] else "",
-            "cat2":         row["category_level_2"] if row["category_level_2"] else "",
-            "price":        int(row["listing_price"]),           # Cent
+            "brand":        safe(row["brand"]),
+            "cat1":         safe(row["category_level_1"]),
+            "cat2":         safe(row["category_level_2"]),
+            "price":        int(row["listing_price"]),
             "price_regular": int(row["listing_regular_price"]) if on_offer else None,
-            "discount":     int(discount) if on_offer else None, # Prozent
+            "discount":     int(discount) if on_offer else None,
             "offer_until":  str(row["listing_discount_valid_to"])[:10] if on_offer else None,
-            "grammage":     row["listing_grammage"] if row["listing_grammage"] else "",
-            "image":        row["image_link"] if row["image_link"] else "",
-            "link":         row["link"] if row["link"] else "",
+            "grammage":     safe(row["listing_grammage"]),
+            "image":        safe(row["image_link"]),
+            "link":         safe(row["link"]),
             "on_offer":     on_offer,
             "keywords":     extract_keywords(row["product_name"]),
         })
 
     OUTPUT_PATH.parent.mkdir(exist_ok=True)
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(products, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump(products, f, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
     size_kb = OUTPUT_PATH.stat().st_size / 1024
     on_offer_count = sum(1 for p in products if p["on_offer"])
