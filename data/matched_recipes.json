@@ -1,0 +1,195 @@
+[
+  {
+    "N": "Kräuterbutter-Baguette mit Knoblauch",
+    "U": "https://www.chefkoch.de/rezepte/100000/Kraeuterbutter-Baguette.html",
+    "I": [
+      {
+        "raw": "2 Stück Baguette",
+        "product_ids": [
+          "560929"
+        ]
+      },
+      {
+        "raw": "125 g Kräuterbutter",
+        "product_ids": [
+          "4529464",
+          "4529472",
+          "8311104"
+        ]
+      },
+      {
+        "raw": "2 Zehen Knoblauch",
+        "product_ids": [
+          "8953642"
+        ]
+      },
+      {
+        "raw": "Salz und Pfeffer",
+        "product_ids": []
+      }
+    ]
+  },
+  {
+    "N": "Ofenkartoffeln mit Kräuterquark",
+    "U": "https://www.chefkoch.de/rezepte/200000/Ofenkartoffeln.html",
+    "I": [
+      {
+        "raw": "1 kg Kartoffeln",
+        "product_ids": [
+          "8381531"
+        ]
+      },
+      {
+        "raw": "200 g Frischkäse natur",
+        "product_ids": [
+          "9541716",
+          "575053",
+          "9533450"
+        ]
+      },
+      {
+        "raw": "1 Bund Schnittlauch",
+        "product_ids": [
+          "575102"
+        ]
+      },
+      {
+        "raw": "1 Zehe Knoblauch",
+        "product_ids": [
+          "8953642"
+        ]
+      },
+      {
+        "raw": "2 EL Olivenöl",
+        "product_ids": []
+      },
+      {
+        "raw": "Salz und Pfeffer",
+        "product_ids": []
+      }
+    ]
+  },
+  {
+    "N": "Bacon-Brötchen mit Sauce",
+    "U": "https://www.chefkoch.de/rezepte/300000/Bacon-Broetchen.html",
+    "I": [
+      {
+        "raw": "4 Gourmetbrötchen",
+        "product_ids": [
+          "1076737"
+        ]
+      },
+      {
+        "raw": "125 g Bacon",
+        "product_ids": [
+          "2642247"
+        ]
+      },
+      {
+        "raw": "4 EL Ketchup",
+        "product_ids": [
+          "9059093"
+        ]
+      },
+      {
+        "raw": "2 EL Burger Sauce",
+        "product_ids": [
+          "8722219"
+        ]
+      },
+      {
+        "raw": "4 Blatt Salat",
+        "product_ids": []
+      },
+      {
+        "raw": "2 Tomaten",
+        "product_ids": []
+      }
+    ]
+  },
+  {
+    "N": "Flammkuchen mit Kräuterbutter",
+    "U": "https://www.chefkoch.de/rezepte/400000/Flammkuchen.html",
+    "I": [
+      {
+        "raw": "1 Flammkuchen",
+        "product_ids": [
+          "9084073",
+          "7914707"
+        ]
+      },
+      {
+        "raw": "100 g Kräuterbutter",
+        "product_ids": [
+          "7813928",
+          "4529472"
+        ]
+      },
+      {
+        "raw": "1 Zwiebel",
+        "product_ids": []
+      },
+      {
+        "raw": "Salz und Pfeffer",
+        "product_ids": []
+      }
+    ]
+  },
+  {
+    "N": "Toast mit Marmelade",
+    "U": "https://www.chefkoch.de/rezepte/500000/Toast-Marmelade.html",
+    "I": [
+      {
+        "raw": "4 Scheiben Toast",
+        "product_ids": []
+      },
+      {
+        "raw": "3 EL Erdbeer-Konfitüre",
+        "product_ids": [
+          "6992811",
+          "8615673"
+        ]
+      },
+      {
+        "raw": "50 g Butter",
+        "product_ids": [
+          "4529430"
+        ]
+      }
+    ]
+  },
+  {
+    "N": "Käseplatte mit Grissini",
+    "U": "https://www.chefkoch.de/rezepte/600000/Kaeseplatte.html",
+    "I": [
+      {
+        "raw": "175 g Wiesenkäse",
+        "product_ids": [
+          "8469678"
+        ]
+      },
+      {
+        "raw": "150 g Weichkäse",
+        "product_ids": [
+          "1055490"
+        ]
+      },
+      {
+        "raw": "200 g Grillkäse",
+        "product_ids": [
+          "973878"
+        ]
+      },
+      {
+        "raw": "125 g Grissini",
+        "product_ids": [
+          "3209717"
+        ]
+      },
+      {
+        "raw": "Trauben und Feigen",
+        "product_ids": []
+      }
+    ]
+  }
+]
