@@ -1,0 +1,79 @@
+name: REWE Pipeline
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'   # Jeden Montag 05:00 UTC (vor dem Angebote-Export um 06:00)
+  workflow_dispatch:        # Auch manuell auslösbar
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp_key.json
+      DESTINATION__BIGQUERY__LOCATION: europe-west3
+      DBT_DATABASE: reweproducts
+      DBT_SCHEMA: rewe_products_data
+
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: GCP Credentials einrichten
+        run: echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp_key.json
+
+      # ── Stage 1: Scraping ──────────────────────────────────────────────────
+      - name: Playwright installieren
+        run: |
+          pip install playwright google-cloud-storage
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: REWE API scrapen → GCS
+        run: python scripts/extract-rewe-api.py
+
+      # ── Stage 2: dlt Load ──────────────────────────────────────────────────
+      - name: dlt installieren
+        run: pip install google-cloud-bigquery-storage "dlt[bigquery]" db-dtypes
+
+      - name: dlt → BigQuery laden
+        run: python scripts/transform-json.py
+
+      # ── Stage 3 & 4: dbt ──────────────────────────────────────────────────
+      - name: dbt installieren
+        run: pip install dbt-bigquery
+
+      - name: dbt Profile schreiben
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          default:
+            outputs:
+              dev:
+                type: bigquery
+                dataset: rewe_products
+                project: ${{ secrets.GCP_PROJECT_ID }}
+                location: europe-west3
+                keyfile: /tmp/gcp_key.json
+                method: service-account
+                priority: interactive
+                threads: 16
+                timeout_seconds: 300
+                fixed_retries: 1
+            target: dev
+          EOF
+
+      - name: dbt build
+        working-directory: dbt
+        run: |
+          dbt clean
+          dbt deps
+          dbt build
