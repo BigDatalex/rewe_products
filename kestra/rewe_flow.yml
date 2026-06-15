@@ -34,7 +34,7 @@ tasks:
 
   - id: cloneRepository
     type: io.kestra.plugin.git.Clone
-    url: https://BigDatalex:<TOKEN>@github.com/BigDatalex/rewe_products
+    url: https://github.com/BigDatalex/rewe_products
     branch: main
     directory: dbt
     disabled: false
