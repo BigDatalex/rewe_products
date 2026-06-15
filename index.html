@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angebote kochen</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Inter:wght@300;400;500&display=swap');
+
+  :root {
+    --bg:       #0f0f0f;
+    --surface:  #1a1a1a;
+    --border:   #2a2a2a;
+    --accent:   #c8f135;
+    --accent2:  #ff6b35;
+    --text:     #f0f0f0;
+    --muted:    #666;
+    --badge-bg: rgba(200,241,53,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 48px 32px 32px;
+    max-width: 1100px;
+    margin: 0 auto;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--text);
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  .subtitle {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .controls {
+    max-width: 1100px;
+    margin: 28px auto 0;
+    padding: 0 32px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .search-wrap input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 10px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-wrap input:focus { border-color: var(--accent); }
+  .search-wrap input::placeholder { color: var(--muted); }
+
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .filter-btn.active {
+    background: var(--badge-bg);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .controls-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .stats-bar {
+    max-width: 1100px;
+    margin: 16px auto 0;
+    padding: 0 32px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .stats-bar span { color: var(--accent); }
+
+  main {
+    max-width: 1100px;
+    margin: 28px auto 60px;
+    padding: 0 32px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+
+  .recipe-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    position: relative;
+  }
+
+  .recipe-card:hover {
+    border-color: #444;
+    transform: translateY(-2px);
+  }
+
+  .recipe-card.has-offers {
+    border-color: rgba(200,241,53,0.25);
+  }
+
+  .recipe-card.has-offers:hover {
+    border-color: rgba(200,241,53,0.5);
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .recipe-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .match-badge {
+    flex-shrink: 0;
+    background: var(--badge-bg);
+    border: 1px solid rgba(200,241,53,0.3);
+    border-radius: 6px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  .match-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+
+  .match-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  .ingredients-list {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .ing-tag {
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: transparent;
+  }
+
+  .ing-tag.matched {
+    border-color: rgba(200,241,53,0.4);
+    color: var(--accent);
+    background: var(--badge-bg);
+  }
+
+  .ing-tag.offer {
+    border-color: rgba(255,107,53,0.4);
+    color: var(--accent2);
+    background: rgba(255,107,53,0.08);
+  }
+
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .price-estimate {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .price-estimate .price-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 1px;
+  }
+
+  .savings-badge {
+    font-size: 11px;
+    color: var(--accent2);
+    background: rgba(255,107,53,0.1);
+    border: 1px solid rgba(255,107,53,0.25);
+    border-radius: 5px;
+    padding: 3px 8px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 100;
+    backdrop-filter: blur(4px);
+    padding: 32px 16px;
+    overflow-y: auto;
+  }
+
+  .modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+
+  .modal {
+    background: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 16px;
+    max-width: 680px;
+    width: 100%;
+    padding: 32px;
+    position: relative;
+    margin: auto;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: var(--border);
+    border: none;
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .modal-close:hover { color: var(--text); }
+
+  .modal h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+
+  .modal-url {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+
+  .modal-url a { color: var(--accent); text-decoration: none; }
+
+  .modal-section-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .modal-ingredients {
+    list-style: none;
+    margin-bottom: 24px;
+  }
+
+  .modal-ingredients li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .modal-ingredients li:last-child { border-bottom: none; }
+
+  .ing-raw {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .ing-product-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ing-product-name {
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .ing-alternatives {
+    margin-top: 2px;
+    padding-left: 8px;
+    border-left: 2px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .ing-alt-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    gap: 12px;
+  }
+
+  .ing-match-info {
+    font-size: 12px;
+    color: var(--accent);
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .ing-offer-tag {
+    font-size: 10px;
+    color: var(--accent2);
+    background: rgba(255,107,53,0.1);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-left: 6px;
+  }
+
+  .modal-price-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .modal-price-big {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+  }
+
+  .modal-price-note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .modal-savings {
+    text-align: right;
+  }
+
+  .modal-savings .saved-amount {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--accent2);
+  }
+
+  .modal-savings .saved-label {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .modal-link-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #0f0f0f;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 12px 24px;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .modal-link-btn:hover { opacity: 0.85; }
+
+  /* Loading */
+  .loading {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 80px 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .loading-dot {
+    display: inline-block;
+    animation: blink 1.2s infinite;
+  }
+  .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0.2; }
+    40% { opacity: 1; }
+  }
+
+  @media (max-width: 600px) {
+    header, .controls, .stats-bar, main { padding-left: 16px; padding-right: 16px; }
+    main { grid-template-columns: 1fr; }
+    .modal { padding: 20px; }
+  }
+
+  /* Listenansicht für Savings-Sort */
+  main.list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  main.list-view .recipe-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 16px;
+    padding: 14px 18px;
+  }
+
+  main.list-view .recipe-card .recipe-name {
+    font-size: 14px;
+    align-self: center;
+  }
+
+  main.list-view .recipe-card .card-footer {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    border-top: none;
+    padding-top: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  main.list-view .recipe-card .match-bar-wrap { display: none; }
+  main.list-view .recipe-card .ingredients-list { display: none; }
+  main.list-view .recipe-card .card-top { margin-bottom: 0; }
+
+  main.list-view .recipe-card .price-estimate {
+    font-size: 15px;
+    text-align: right;
+  }
+
+  .rank-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    align-self: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-label">REWE × Chefkoch</div>
+  <h1>Kochen was<br><span>im Angebot</span> ist.</h1>
+  <p class="subtitle">Rezepte sortiert nach Anteil der rabattierten Zutaten — mit geschätzten Gesamtkosten.</p>
+</header>
+
+<div class="controls">
+  <div class="search-wrap">
+    <input type="text" id="search" placeholder="Rezept oder Zutat suchen…" autocomplete="off">
+  </div>
+  <button class="filter-btn active" id="btn-all" onclick="setFilter('all')">Alle</button>
+  <button class="filter-btn" id="btn-offers" onclick="setFilter('offers')">Nur mit Angeboten</button>
+  <div class="controls-divider"></div>
+  <button class="filter-btn active" id="btn-sort-offers" onclick="setSort('offers')">↓ Angebote</button>
+  <button class="filter-btn" id="btn-sort-savings" onclick="setSort('savings')">↓ Ersparnis €</button>
+</div>
+
+<div class="stats-bar" id="stats-bar"></div>
+
+<main id="grid">
+  <div class="loading">Daten werden geladen<span class="loading-dot">.</span><span class="loading-dot">.</span><span class="loading-dot">.</span></div>
+</main>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let allProducts = [];
+let allRecipes  = [];
+let ranked      = [];
+let activeFilter = 'all';
+let activeSort   = 'offers';  // 'offers' | 'savings'
+let searchQuery  = '';
+
+// ─── Ranking (Matching bereits vorberechnet in matched_recipes.json) ──────────
+function cheapestProduct(productIds, productById) {
+  // Gibt das günstigste Produkt aus der Liste zurück
+  const products = productIds
+    .map(id => productById[id])
+    .filter(Boolean);
+  if (!products.length) return null;
+  return products.reduce((a, b) => a.price <= b.price ? a : b);
+}
+
+function rankRecipes(recipes, productById) {
+  return recipes.map(recipe => {
+    const ingMatches = recipe.I.map(ing => {
+      const product = ing.product_ids?.length
+        ? cheapestProduct(ing.product_ids, productById)
+        : null;
+      return { raw: ing.raw, product, allProducts: (ing.product_ids || []).map(id => productById[id]).filter(Boolean) };
+    });
+
+    const matched  = ingMatches.filter(m => m.product);
+    const onOffer  = matched.filter(m => m.product.on_offer);
+
+    const offerScore = matched.length > 0 ? onOffer.length / matched.length : 0;
+    const matchScore = recipe.I.length  > 0 ? matched.length / recipe.I.length : 0;
+
+    const totalCent = matched.reduce((s, m) => s + m.product.price, 0);
+    const regularCent = matched.reduce((s, m) =>
+      s + (m.product.price_regular || m.product.price), 0);
+    const savingsCent = regularCent - totalCent;
+
+    return {
+      recipe, ingMatches, offerScore, matchScore,
+      onOfferCount: onOffer.length,
+      matchedCount: matched.length,
+      totalCent, savingsCent,
+    };
+  }).sort((a,b) => b.offerScore - a.offerScore || b.matchScore - a.matchScore);
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function formatPrice(cent) {
+  return (cent / 100).toFixed(2).replace('.', ',') + ' €';
+}
+
+function renderCard(r) {
+  const pct = Math.round(r.offerScore * 100);
+  const hasOffers = r.onOfferCount > 0;
+
+  // Top 6 ingredients to show as tags
+  const tags = r.ingMatches.slice(0, 8).map(m => {
+    const cls = m.product
+      ? (m.product.on_offer ? 'ing-tag offer' : 'ing-tag matched')
+      : 'ing-tag';
+    const label = m.raw.replace(/^\d+[^\s]*\s*/,'').split(',')[0];
+    return `<li class="${cls}">${label}</li>`;
+  }).join('');
+
+  const priceStr = r.totalCent > 0 ? formatPrice(r.totalCent) : '—';
+  const savingsStr = r.savingsCent > 50 ? `${formatPrice(r.savingsCent)} gespart` : '';
+
+  return `
+  <div class="recipe-card ${hasOffers ? 'has-offers' : ''}"
+       onclick='openModal(${JSON.stringify(r.recipe.U)})'>
+    <div class="card-top">
+      <div class="recipe-name">${r.recipe.N}</div>
+      ${hasOffers ? `<div class="match-badge">🏷 ${r.onOfferCount} im Angebot</div>` : ''}
+    </div>
+    <div class="match-bar-wrap">
+      <div class="match-bar" style="width:${pct}%"></div>
+    </div>
+    <ul class="ingredients-list">${tags}</ul>
+    <div class="card-footer">
+      <div class="price-estimate">
+        <span class="price-label">ca. Preis</span>
+        ${priceStr}
+      </div>
+      ${savingsStr ? `<div class="savings-badge">↓ ${savingsStr}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderListRow(r, rank) {
+  const priceStr   = r.totalCent    > 0  ? formatPrice(r.totalCent)    : '—';
+  const savingsStr = r.savingsCent  > 50 ? formatPrice(r.savingsCent)  : null;
+
+  return `
+  <div class="recipe-card ${r.onOfferCount > 0 ? 'has-offers' : ''}"
+       onclick='openModal(${JSON.stringify(r.recipe.U)})'>
+    <div class="card-top" style="margin-bottom:0">
+      <span class="rank-number">#${rank}</span>
+      <div class="recipe-name">${r.recipe.N}</div>
+      ${r.onOfferCount > 0 ? `<div class="match-badge">🏷 ${r.onOfferCount}</div>` : ''}
+    </div>
+    <div class="card-footer">
+      <div class="price-estimate">
+        <span class="price-label">ca. Preis</span>
+        ${priceStr}
+      </div>
+      ${savingsStr ? `<div class="savings-badge">↓ ${savingsStr}</div>` : '<div style="font-size:11px;color:var(--muted)">kein Rabatt</div>'}
+    </div>
+  </div>`;
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  let data = [...ranked];
+
+  if (activeFilter === 'offers') {
+    data = data.filter(r => r.onOfferCount > 0);
+  }
+
+  if (activeSort === 'savings') {
+    data = data.slice().sort((a,b) => b.savingsCent - a.savingsCent);
+  }
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    data = data.filter(r =>
+      r.recipe.N.toLowerCase().includes(q) ||
+      r.recipe.I.some(i => i.raw.toLowerCase().includes(q))
+    );
+  }
+
+  const shown = data.slice(0, 60);
+  document.getElementById('stats-bar').innerHTML =
+    `<span>${shown.length}</span> Rezepte · ` +
+    `<span>${allProducts.filter(p=>p.on_offer).length}</span> Produkte im Angebot`;
+
+  if (!shown.length) {
+    grid.innerHTML = '<div class="loading">Keine Rezepte gefunden.</div>';
+    return;
+  }
+
+  if (activeSort === 'savings') {
+    grid.className = 'list-view';
+    grid.innerHTML = shown.map((r, i) => renderListRow(r, i + 1)).join('');
+  } else {
+    grid.className = '';
+    grid.innerHTML = shown.map(renderCard).join('');
+  }
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+let recipeByUrl = {};
+
+function openModal(url) {
+  const r = recipeByUrl[url];
+  if (!r) return;
+
+  const ingRows = r.ingMatches.map(m => {
+    if (!m.product) return `<li><span class="ing-raw">${m.raw}</span></li>`;
+
+    const cheapest = m.product;
+    const alternatives = m.allProducts.filter(p => p.id !== cheapest.id);
+
+    const cheapestHtml = `
+      <div class="ing-product-row">
+        <span class="ing-product-name">${cheapest.name}</span>
+        <span class="ing-match-info">
+          ${formatPrice(cheapest.price)}
+          ${cheapest.on_offer ? `<span class="ing-offer-tag">-${cheapest.discount}%</span>` : ''}
+        </span>
+      </div>`;
+
+    const altHtml = alternatives.length ? `
+      <div class="ing-alternatives">
+        ${alternatives.map(p => `
+          <div class="ing-alt-row">
+            <span>${p.name}</span>
+            <span>${formatPrice(p.price)}${p.on_offer ? ` <span class="ing-offer-tag">-${p.discount}%</span>` : ''}</span>
+          </div>`).join('')}
+      </div>` : '';
+
+    return `<li>
+      <span class="ing-raw">${m.raw}</span>
+      ${cheapestHtml}${altHtml}
+    </li>`;
+  }).join('');
+
+  const savingsSection = r.savingsCent > 50 ? `
+    <div class="modal-savings">
+      <div class="saved-amount">− ${formatPrice(r.savingsCent)}</div>
+      <div class="saved-label">Ersparnis durch Angebote</div>
+    </div>` : '';
+
+  document.getElementById('modal-content').innerHTML = `
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2>${r.recipe.N}</h2>
+    <div class="modal-url"><a href="${url}" target="_blank" rel="noopener">Rezept auf Chefkoch ↗</a></div>
+
+    <div class="modal-section-label">Zutaten & Preise</div>
+    <ul class="modal-ingredients">${ingRows}</ul>
+
+    <div class="modal-price-box">
+      <div>
+        <div class="modal-price-big">${r.totalCent > 0 ? formatPrice(r.totalCent) : '—'}</div>
+        <div class="modal-price-note">geschätzte Zutatenkosten · ${r.matchedCount} von ${r.recipe.I.length} Zutaten gefunden</div>
+      </div>
+      ${savingsSection}
+    </div>
+
+    <a class="modal-link-btn" href="${url}" target="_blank" rel="noopener">Zum Rezept →</a>
+  `;
+
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+function setFilter(f) {
+  activeFilter = f;
+  document.getElementById('btn-all').classList.toggle('active', f === 'all');
+  document.getElementById('btn-offers').classList.toggle('active', f === 'offers');
+  renderGrid();
+}
+
+function setSort(s) {
+  activeSort = s;
+  document.getElementById('btn-sort-offers').classList.toggle('active', s === 'offers');
+  document.getElementById('btn-sort-savings').classList.toggle('active', s === 'savings');
+  renderGrid();
+}
+
+document.getElementById('search').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+  renderGrid();
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const [prodRes, recRes] = await Promise.all([
+      fetch('data/angebote.json'),
+      fetch('data/matched_recipes.json'),
+    ]);
+    allProducts = await prodRes.json();
+    allRecipes  = await recRes.json();
+
+    // product_id → product lookup
+    const productById = {};
+    allProducts.forEach(p => { productById[p.id] = p; });
+
+    ranked = rankRecipes(allRecipes, productById);
+    ranked.forEach(r => { recipeByUrl[r.recipe.U] = r; });
+
+    renderGrid();
+  } catch(err) {
+    document.getElementById('grid').innerHTML =
+      `<div class="loading">Fehler beim Laden der Daten.<br><small>${err.message}</small></div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
