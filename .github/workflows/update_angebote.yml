@@ -1,0 +1,42 @@
+name: Angebote aktualisieren
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Jeden Montag um 06:00 UTC
+  workflow_dispatch:       # Auch manuell auslösbar
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Abhängigkeiten installieren
+        run: pip install google-cloud-bigquery pandas
+
+      - name: GCP Credentials einrichten
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp_key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp_key.json" >> $GITHUB_ENV
+
+      - name: Angebote aus BigQuery exportieren
+        env:
+          BQ_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          BQ_DATASET: ${{ secrets.BQ_DATASET }}
+          BQ_TABLE: ${{ secrets.BQ_TABLE }}
+        run: python scripts/export_bigquery.py
+
+      - name: Änderungen committen und pushen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/angebote.json
+          git diff --staged --quiet || git commit -m "Angebote aktualisiert: $(date -u '+%Y-%m-%d')"
+          git push
