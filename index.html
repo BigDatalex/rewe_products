@@ -150,6 +150,36 @@
     position: relative;
   }
 
+  .recipe-card.has-image {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .card-image {
+    height: 150px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+  }
+
+  .card-body {
+    padding: 18px 20px;
+  }
+
+  .img-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(15,15,15,0.85);
+    backdrop-filter: blur(4px);
+  }
+
+  .card-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
   .recipe-card:hover {
     border-color: #444;
     transform: translateY(-2px);
@@ -316,6 +346,36 @@
     margin-bottom: 6px;
   }
 
+  .modal-image {
+    height: 200px;
+    background-size: cover;
+    background-position: center;
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+
+  .modal-meta {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .modal-keywords {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  .modal-keywords span {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 10px;
+  }
+
   .modal-url {
     font-size: 12px;
     color: var(--muted);
@@ -473,6 +533,38 @@
     40% { opacity: 1; }
   }
 
+  #load-more-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 0 32px 60px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  #load-more-btn {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    color: var(--accent);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 14px 32px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  #load-more-btn:hover {
+    background: var(--badge-bg);
+  }
+
+  #load-more-count {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
   @media (max-width: 600px) {
     header, .controls, .stats-bar, main { padding-left: 16px; padding-right: 16px; }
     main { grid-template-columns: 1fr; }
@@ -552,6 +644,12 @@
   <div class="loading">Daten werden geladen<span class="loading-dot">.</span><span class="loading-dot">.</span><span class="loading-dot">.</span></div>
 </main>
 
+<div id="load-more-wrap" style="display:none">
+  <button id="load-more-btn" onclick="loadMore()">
+    Mehr anzeigen <span id="load-more-count"></span>
+  </button>
+</div>
+
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" id="modal-content"></div>
 </div>
@@ -564,22 +662,27 @@ let ranked      = [];
 let activeFilter = 'all';
 let activeSort   = 'offers';  // 'offers' | 'savings'
 let searchQuery  = '';
+let displayCount = 60;
+let filteredData = [];
 
 // ─── Ranking (Matching bereits vorberechnet in matched_recipes.json) ──────────
-function cheapestProduct(productIds, productById) {
-  // Gibt das günstigste Produkt aus der Liste zurück
+function pickProduct(productIds, productById) {
+  // Angebot gewinnt: erst günstigstes Angebotsprodukt, sonst günstigstes reguläres
   const products = productIds
     .map(id => productById[id])
     .filter(Boolean);
   if (!products.length) return null;
-  return products.reduce((a, b) => a.price <= b.price ? a : b);
+
+  const offers = products.filter(p => p.on_offer);
+  const pool = offers.length ? offers : products;
+  return pool.reduce((a, b) => a.price <= b.price ? a : b);
 }
 
 function rankRecipes(recipes, productById) {
   return recipes.map(recipe => {
     const ingMatches = recipe.I.map(ing => {
       const product = ing.product_ids?.length
-        ? cheapestProduct(ing.product_ids, productById)
+        ? pickProduct(ing.product_ids, productById)
         : null;
       return { raw: ing.raw, product, allProducts: (ing.product_ids || []).map(id => productById[id]).filter(Boolean) };
     });
@@ -601,7 +704,11 @@ function rankRecipes(recipes, productById) {
       matchedCount: matched.length,
       totalCent, savingsCent,
     };
-  }).sort((a,b) => b.offerScore - a.offerScore || b.matchScore - a.matchScore);
+  }).sort((a,b) =>
+    b.onOfferCount - a.onOfferCount ||   // 1. die meisten Angebote absolut
+    b.offerScore - a.offerScore ||        // 2. dann höchster Anteil
+    b.matchScore - a.matchScore           // 3. dann beste Match-Quote
+  );
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
@@ -625,23 +732,40 @@ function renderCard(r) {
   const priceStr = r.totalCent > 0 ? formatPrice(r.totalCent) : '—';
   const savingsStr = r.savingsCent > 50 ? `${formatPrice(r.savingsCent)} gespart` : '';
 
+  const rec = r.recipe;
+  const metaParts = [];
+  if (rec.rating) metaParts.push(`★ ${rec.rating} ${rec.rating_count ? `(${rec.rating_count})` : ''}`);
+  if (rec.time)   metaParts.push(`⏱ ${rec.time}`);
+  if (rec.yield)  metaParts.push(rec.yield);
+  const metaLine = metaParts.length
+    ? `<div class="card-meta">${metaParts.join(' · ')}</div>` : '';
+
+  const imageHtml = rec.image
+    ? `<div class="card-image" style="background-image:url('${rec.image}')">
+         ${hasOffers ? `<div class="match-badge img-badge">🏷 ${r.onOfferCount} im Angebot</div>` : ''}
+       </div>` : '';
+
   return `
-  <div class="recipe-card ${hasOffers ? 'has-offers' : ''}"
-       onclick='openModal(${JSON.stringify(r.recipe.U)})'>
-    <div class="card-top">
-      <div class="recipe-name">${r.recipe.N}</div>
-      ${hasOffers ? `<div class="match-badge">🏷 ${r.onOfferCount} im Angebot</div>` : ''}
-    </div>
-    <div class="match-bar-wrap">
-      <div class="match-bar" style="width:${pct}%"></div>
-    </div>
-    <ul class="ingredients-list">${tags}</ul>
-    <div class="card-footer">
-      <div class="price-estimate">
-        <span class="price-label">ca. Preis</span>
-        ${priceStr}
+  <div class="recipe-card ${hasOffers ? 'has-offers' : ''} ${rec.image ? 'has-image' : ''}"
+       onclick='openModal(${JSON.stringify(rec.U)})'>
+    ${imageHtml}
+    <div class="card-body">
+      <div class="card-top">
+        <div class="recipe-name">${rec.N}</div>
+        ${(!rec.image && hasOffers) ? `<div class="match-badge">🏷 ${r.onOfferCount} im Angebot</div>` : ''}
       </div>
-      ${savingsStr ? `<div class="savings-badge">↓ ${savingsStr}</div>` : ''}
+      ${metaLine}
+      <div class="match-bar-wrap">
+        <div class="match-bar" style="width:${pct}%"></div>
+      </div>
+      <ul class="ingredients-list">${tags}</ul>
+      <div class="card-footer">
+        <div class="price-estimate">
+          <span class="price-label">ca. Preis</span>
+          ${priceStr}
+        </div>
+        ${savingsStr ? `<div class="savings-badge">↓ ${savingsStr}</div>` : ''}
+      </div>
     </div>
   </div>`;
 }
@@ -688,13 +812,16 @@ function renderGrid() {
     );
   }
 
-  const shown = data.slice(0, 60);
+  filteredData = data;  // für load-more merken
+  const shown = data.slice(0, displayCount);
+
   document.getElementById('stats-bar').innerHTML =
-    `<span>${shown.length}</span> Rezepte · ` +
+    `<span>${shown.length}</span> von <span>${data.length}</span> Rezepten · ` +
     `<span>${allProducts.filter(p=>p.on_offer).length}</span> Produkte im Angebot`;
 
   if (!shown.length) {
     grid.innerHTML = '<div class="loading">Keine Rezepte gefunden.</div>';
+    document.getElementById('load-more-wrap').style.display = 'none';
     return;
   }
 
@@ -705,6 +832,21 @@ function renderGrid() {
     grid.className = '';
     grid.innerHTML = shown.map(renderCard).join('');
   }
+
+  // Load-more Button
+  const wrap = document.getElementById('load-more-wrap');
+  if (data.length > displayCount) {
+    wrap.style.display = 'flex';
+    document.getElementById('load-more-count').textContent =
+      `${data.length - displayCount} weitere`;
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function loadMore() {
+  displayCount += 60;
+  renderGrid();
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
@@ -750,10 +892,29 @@ function openModal(url) {
       <div class="saved-label">Ersparnis durch Angebote</div>
     </div>` : '';
 
+  const rec = r.recipe;
+  const metaParts = [];
+  if (rec.rating) metaParts.push(`★ ${rec.rating}${rec.rating_count ? ` (${rec.rating_count} Bewertungen)` : ''}`);
+  if (rec.time)   metaParts.push(`⏱ ${rec.time}`);
+  if (rec.yield)  metaParts.push(`🍽 ${rec.yield}`);
+  if (rec.category) metaParts.push(rec.category);
+  const metaLine = metaParts.length
+    ? `<div class="modal-meta">${metaParts.join(' · ')}</div>` : '';
+
+  const imageHtml = rec.image
+    ? `<div class="modal-image" style="background-image:url('${rec.image}')"></div>` : '';
+
+  const keywordsHtml = (rec.keywords && rec.keywords.length)
+    ? `<div class="modal-keywords">${rec.keywords.slice(0, 8).map(k => `<span>${k}</span>`).join('')}</div>`
+    : '';
+
   document.getElementById('modal-content').innerHTML = `
     <button class="modal-close" onclick="closeModal()">✕</button>
-    <h2>${r.recipe.N}</h2>
+    ${imageHtml}
+    <h2>${rec.N}</h2>
+    ${metaLine}
     <div class="modal-url"><a href="${url}" target="_blank" rel="noopener">Rezept auf Chefkoch ↗</a></div>
+    ${keywordsHtml}
 
     <div class="modal-section-label">Zutaten & Preise</div>
     <ul class="modal-ingredients">${ingRows}</ul>
@@ -761,7 +922,7 @@ function openModal(url) {
     <div class="modal-price-box">
       <div>
         <div class="modal-price-big">${r.totalCent > 0 ? formatPrice(r.totalCent) : '—'}</div>
-        <div class="modal-price-note">geschätzte Zutatenkosten · ${r.matchedCount} von ${r.recipe.I.length} Zutaten gefunden</div>
+        <div class="modal-price-note">geschätzte Zutatenkosten · ${r.matchedCount} von ${rec.I.length} Zutaten gefunden</div>
       </div>
       ${savingsSection}
     </div>
@@ -784,6 +945,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 // ─── Controls ─────────────────────────────────────────────────────────────────
 function setFilter(f) {
   activeFilter = f;
+  displayCount = 60;
   document.getElementById('btn-all').classList.toggle('active', f === 'all');
   document.getElementById('btn-offers').classList.toggle('active', f === 'offers');
   renderGrid();
@@ -791,6 +953,7 @@ function setFilter(f) {
 
 function setSort(s) {
   activeSort = s;
+  displayCount = 60;
   document.getElementById('btn-sort-offers').classList.toggle('active', s === 'offers');
   document.getElementById('btn-sort-savings').classList.toggle('active', s === 'savings');
   renderGrid();
@@ -798,6 +961,7 @@ function setSort(s) {
 
 document.getElementById('search').addEventListener('input', e => {
   searchQuery = e.target.value.trim();
+  displayCount = 60;
   renderGrid();
 });
 
