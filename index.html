@@ -420,6 +420,50 @@
     gap: 12px;
   }
 
+  a.ing-product-row, a.ing-alt-row {
+    text-decoration: none;
+    color: inherit;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+
+  a.ing-product-row.clickable { padding: 4px 6px; margin: 0 -6px; }
+  a.ing-alt-row.clickable { padding: 2px 6px; margin: 0 -6px; }
+
+  a.ing-product-row.clickable:hover,
+  a.ing-alt-row.clickable:hover {
+    background: var(--badge-bg);
+  }
+
+  .ext-icon {
+    color: var(--accent);
+    font-size: 11px;
+    opacity: 0.7;
+  }
+
+  .modal-btn-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .modal-rewe-btn {
+    flex: 1;
+    min-width: 200px;
+    background: var(--accent2);
+    color: #0f0f0f;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .modal-rewe-btn:hover { opacity: 0.85; }
+
   .ing-product-name {
     font-size: 13px;
     color: var(--text);
@@ -851,6 +895,15 @@ function loadMore() {
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 let recipeByUrl = {};
+let currentOfferLinks = [];
+
+function openAllOffers() {
+  // Öffnet jeden Angebots-Link in neuem Tab. Browser können Popups blocken;
+  // der erste öffnet immer, für weitere ggf. Popups erlauben.
+  currentOfferLinks.forEach((link, i) => {
+    setTimeout(() => window.open(link, '_blank', 'noopener'), i * 100);
+  });
+}
 
 function openModal(url) {
   const r = recipeByUrl[url];
@@ -862,22 +915,30 @@ function openModal(url) {
     const cheapest = m.product;
     const alternatives = m.allProducts.filter(p => p.id !== cheapest.id);
 
+    const linkAttr = cheapest.link
+      ? `href="${cheapest.link}" target="_blank" rel="noopener"`
+      : '';
+    const tag = cheapest.link ? 'a' : 'div';
+
     const cheapestHtml = `
-      <div class="ing-product-row">
-        <span class="ing-product-name">${cheapest.name}</span>
+      <${tag} class="ing-product-row${cheapest.link ? ' clickable' : ''}" ${linkAttr}>
+        <span class="ing-product-name">${cheapest.name}${cheapest.link ? ' <span class="ext-icon">↗</span>' : ''}</span>
         <span class="ing-match-info">
           ${formatPrice(cheapest.price)}
           ${cheapest.on_offer ? `<span class="ing-offer-tag">-${cheapest.discount}%</span>` : ''}
         </span>
-      </div>`;
+      </${tag}>`;
 
     const altHtml = alternatives.length ? `
       <div class="ing-alternatives">
-        ${alternatives.map(p => `
-          <div class="ing-alt-row">
-            <span>${p.name}</span>
+        ${alternatives.map(p => {
+          const at = p.link ? 'a' : 'div';
+          const al = p.link ? `href="${p.link}" target="_blank" rel="noopener"` : '';
+          return `<${at} class="ing-alt-row${p.link ? ' clickable' : ''}" ${al}>
+            <span>${p.name}${p.link ? ' <span class="ext-icon">↗</span>' : ''}</span>
             <span>${formatPrice(p.price)}${p.on_offer ? ` <span class="ing-offer-tag">-${p.discount}%</span>` : ''}</span>
-          </div>`).join('')}
+          </${at}>`;
+        }).join('')}
       </div>` : '';
 
     return `<li>
@@ -908,6 +969,18 @@ function openModal(url) {
     ? `<div class="modal-keywords">${rec.keywords.slice(0, 8).map(k => `<span>${k}</span>`).join('')}</div>`
     : '';
 
+  // Links aller gematchten Angebots-Produkte für "Alle öffnen"
+  const offerLinks = r.ingMatches
+    .filter(m => m.product && m.product.on_offer && m.product.link)
+    .map(m => m.product.link);
+  // dedupe
+  currentOfferLinks = [...new Set(offerLinks)];
+
+  const openAllBtn = currentOfferLinks.length
+    ? `<button class="modal-rewe-btn" onclick="openAllOffers()">
+         🛒 ${currentOfferLinks.length} Angebot${currentOfferLinks.length > 1 ? 'e' : ''} bei REWE öffnen
+       </button>` : '';
+
   document.getElementById('modal-content').innerHTML = `
     <button class="modal-close" onclick="closeModal()">✕</button>
     ${imageHtml}
@@ -927,7 +1000,10 @@ function openModal(url) {
       ${savingsSection}
     </div>
 
-    <a class="modal-link-btn" href="${url}" target="_blank" rel="noopener">Zum Rezept →</a>
+    <div class="modal-btn-row">
+      ${openAllBtn}
+      <a class="modal-link-btn" href="${url}" target="_blank" rel="noopener">Zum Rezept →</a>
+    </div>
   `;
 
   document.getElementById('modal-overlay').classList.add('open');
