@@ -44,6 +44,7 @@ final as (
     where rewe_products.category_path not like "Tierbedarf%" and
     rewe_products.category_path not like "Küche & Haushalt%" and
     rewe_products.category_path not like "Drogerie & Kosmetik%" and
+    rewe_products.category_path not like "Drogerie & Gesundheit%" and
     rewe_products.category_path not like "Haus & Freizeit%" and
     rewe_products.category_path not like "Babybedarf%" and
     rewe_products.category_path not like "Baby & Kind%" 
