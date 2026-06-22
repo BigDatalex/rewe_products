@@ -2,7 +2,7 @@ name: REWE Pipeline
 
 on:
   schedule:
-    - cron: '0 5 * * 1'   # Jeden Montag 05:00 UTC (vor dem Angebote-Export um 06:00)
+    - cron: '41 9 * * 0'   # Jeden Sonntag 9:41 UTC (Rewe aktualisiert meist gegen 6-7 Uhr)
   workflow_dispatch:        # Auch manuell auslösbar
 
 permissions:

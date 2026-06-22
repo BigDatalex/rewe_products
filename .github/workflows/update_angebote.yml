@@ -2,7 +2,7 @@ name: Angebote aktualisieren
 
 on:
   schedule:
-    - cron: '0 6 * * 1'
+    - cron: '41 10 * * 0'  # eine stunde nach dem scraping
   workflow_dispatch:
 
 permissions:
