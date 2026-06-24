@@ -188,8 +188,12 @@
     position: absolute;
     top: 10px;
     right: 10px;
-    background: rgba(15,15,15,0.85);
-    backdrop-filter: blur(4px);
+  }
+
+  .img-badge.match-badge {
+    background: var(--accent2);
+    border-color: var(--accent2);
+    color: #15120c;
   }
 
   .card-meta {
@@ -250,7 +254,7 @@
 
   .match-bar {
     height: 100%;
-    background: var(--accent);
+    background: var(--accent2);
     border-radius: 2px;
     transition: width 0.4s ease;
   }
@@ -640,53 +644,6 @@
     main { grid-template-columns: 1fr; }
     .modal { padding: 20px; }
   }
-
-  /* Listenansicht für Savings-Sort */
-  main.list-view {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  main.list-view .recipe-card {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto;
-    gap: 4px 16px;
-    padding: 14px 18px;
-  }
-
-  main.list-view .recipe-card .recipe-name {
-    font-size: 14px;
-    align-self: center;
-  }
-
-  main.list-view .recipe-card .card-footer {
-    grid-column: 2;
-    grid-row: 1 / 3;
-    border-top: none;
-    padding-top: 0;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 4px;
-  }
-
-  main.list-view .recipe-card .match-bar-wrap { display: none; }
-  main.list-view .recipe-card .ingredients-list { display: none; }
-  main.list-view .recipe-card .card-top { margin-bottom: 0; }
-
-  main.list-view .recipe-card .price-estimate {
-    font-size: 15px;
-    text-align: right;
-  }
-
-  .rank-number {
-    font-family: 'Syne', sans-serif;
-    font-size: 11px;
-    color: var(--muted);
-    align-self: center;
-  }
 </style>
 </head>
 <body>
@@ -704,6 +661,7 @@
   </div>
   <button class="filter-btn active" id="btn-all" onclick="setFilter('all')">Alle</button>
   <button class="filter-btn" id="btn-offers" onclick="setFilter('offers')">Nur mit Angeboten</button>
+  <button class="filter-btn" id="btn-full-match" onclick="setFilter('full-match')">100% Match</button>
   <div class="controls-divider"></div>
   <button class="filter-btn active" id="btn-sort-offers" onclick="setSort('offers')">↓ Angebote</button>
   <button class="filter-btn" id="btn-sort-savings" onclick="setSort('savings')">↓ Ersparnis €</button>
@@ -791,8 +749,19 @@ function renderCard(r) {
   const pct = Math.round(r.offerScore * 100);
   const hasOffers = r.onOfferCount > 0;
 
-  // Top 6 ingredients to show as tags
-  const tags = r.ingMatches.slice(0, 8).map(m => {
+  // Top 8 ingredients to show as tags -- sortiert nach Relevanz:
+  // 1. im Angebot, 2. sonstiger Treffer, 3. kein Treffer. Innerhalb jeder
+  // Gruppe bleibt die urspruengliche Rezept-Reihenfolge erhalten (stabile
+  // Sortierung), damit es nicht willkuerlich wirkt. Ohne diese Sortierung
+  // wuerden einfach die ersten 8 Zutaten der Original-Liste gezeigt, auch
+  // wenn die interessanten Angebots-Treffer weiter hinten stehen.
+  const priority = m => m.product ? (m.product.on_offer ? 0 : 1) : 2;
+  const sortedMatches = r.ingMatches
+    .map((m, idx) => ({ m, idx }))
+    .sort((a, b) => priority(a.m) - priority(b.m) || a.idx - b.idx)
+    .map(x => x.m);
+
+  const tags = sortedMatches.slice(0, 8).map(m => {
     const cls = m.product
       ? (m.product.on_offer ? 'ing-tag offer' : 'ing-tag matched')
       : 'ing-tag';
@@ -841,34 +810,17 @@ function renderCard(r) {
   </div>`;
 }
 
-function renderListRow(r, rank) {
-  const priceStr   = r.totalCent    > 0  ? formatPrice(r.totalCent)    : '—';
-  const savingsStr = r.savingsCent  > 50 ? formatPrice(r.savingsCent)  : null;
-
-  return `
-  <div class="recipe-card ${r.onOfferCount > 0 ? 'has-offers' : ''}"
-       onclick='openModal(${JSON.stringify(r.recipe.U)})'>
-    <div class="card-top" style="margin-bottom:0">
-      <span class="rank-number">#${rank}</span>
-      <div class="recipe-name">${r.recipe.N}</div>
-      ${r.onOfferCount > 0 ? `<div class="match-badge">🏷 ${r.onOfferCount}</div>` : ''}
-    </div>
-    <div class="card-footer">
-      <div class="price-estimate">
-        <span class="price-label">ca. Preis</span>
-        ${priceStr}
-      </div>
-      ${savingsStr ? `<div class="savings-badge">↓ ${savingsStr}</div>` : '<div style="font-size:11px;color:var(--muted)">kein Rabatt</div>'}
-    </div>
-  </div>`;
-}
-
 function renderGrid() {
   const grid = document.getElementById('grid');
   let data = [...ranked];
 
   if (activeFilter === 'offers') {
     data = data.filter(r => r.onOfferCount > 0);
+  } else if (activeFilter === 'full-match') {
+    // matchScore = matched.length / recipe.I.length (siehe rankRecipes()).
+    // Gleitkomma-Vergleich bewusst mit Toleranz statt === 1, falls durch
+    // Rundung minimal abweichende Werte auftreten.
+    data = data.filter(r => r.matchScore >= 0.999);
   }
 
   if (activeSort === 'savings') {
@@ -896,13 +848,8 @@ function renderGrid() {
     return;
   }
 
-  if (activeSort === 'savings') {
-    grid.className = 'list-view';
-    grid.innerHTML = shown.map((r, i) => renderListRow(r, i + 1)).join('');
-  } else {
-    grid.className = '';
-    grid.innerHTML = shown.map(renderCard).join('');
-  }
+  grid.className = '';
+  grid.innerHTML = shown.map(renderCard).join('');
 
   // Load-more Button
   const wrap = document.getElementById('load-more-wrap');
@@ -1052,6 +999,7 @@ function setFilter(f) {
   displayCount = 60;
   document.getElementById('btn-all').classList.toggle('active', f === 'all');
   document.getElementById('btn-offers').classList.toggle('active', f === 'offers');
+  document.getElementById('btn-full-match').classList.toggle('active', f === 'full-match');
   renderGrid();
 }
 
