@@ -149,6 +149,52 @@
 
   .stats-bar span { color: var(--accent); }
 
+  .mode-bar {
+    max-width: 1100px;
+    margin: 16px auto 0;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .mode-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .mode-toggle {
+    display: inline-flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .mode-btn {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .mode-btn.active {
+    background: var(--badge-bg);
+    color: var(--accent);
+  }
+
+  .mode-btn:not(.active):hover { color: var(--text); }
+
   main {
     max-width: 1100px;
     margin: 28px auto 60px;
@@ -532,6 +578,38 @@
     margin-left: 6px;
   }
 
+  /* Mengen-/Paket-Anzeige */
+  .ing-pkg-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--badge-bg);
+    border: 1px solid rgba(200,241,53,0.3);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+
+  .ing-pkg-badge.alt {
+    font-size: 9px;
+    padding: 0 5px;
+  }
+
+  .ing-pkg-unit {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  .ing-overshoot {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
   .modal-price-box {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -640,7 +718,7 @@
   }
 
   @media (max-width: 600px) {
-    header, .controls, .stats-bar, main { padding-left: 16px; padding-right: 16px; }
+    header, .controls, .stats-bar, .mode-bar, main { padding-left: 16px; padding-right: 16px; }
     main { grid-template-columns: 1fr; }
     .modal { padding: 20px; }
   }
@@ -667,6 +745,20 @@
   <button class="filter-btn" id="btn-sort-savings" onclick="setSort('savings')">↓ Ersparnis €</button>
 </div>
 
+<div class="mode-bar">
+  <span class="mode-label">Einkaufsmodus</span>
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="btn-mode-offers" onclick="setPriceMode('offers')"
+            title="Bevorzugt Produkte im Angebot. Nur wenn es kein Angebot gibt, wird das günstigste reguläre Produkt gewählt.">
+      🏷 Angebote shoppen
+    </button>
+    <button class="mode-btn" id="btn-mode-cheapest" onclick="setPriceMode('cheapest')"
+            title="Wählt immer das absolut günstigste Produkt (Preis × benötigte Pakete), egal ob im Angebot oder nicht.">
+      € Günstigster Preis
+    </button>
+  </div>
+</div>
+
 <div class="stats-bar" id="stats-bar"></div>
 
 <main id="grid">
@@ -688,32 +780,69 @@
 let allProducts = [];
 let allRecipes  = [];
 let ranked      = [];
+let productById  = {};
 let activeFilter = 'all';
 let activeSort   = 'offers';  // 'offers' | 'savings'
+let priceMode    = 'offers';  // 'offers' = Angebote bevorzugen | 'cheapest' = absolut günstigster (paket-bereinigter) Preis
 let searchQuery  = '';
 let displayCount = 60;
 let filteredData = [];
 
 // ─── Ranking (Matching bereits vorberechnet in matched_recipes.json) ──────────
-function pickProduct(productIds, productById) {
-  // Angebot gewinnt: erst günstigstes Angebotsprodukt, sonst günstigstes reguläres
-  const products = productIds
+function pickProduct(ing, productById) {
+  // Verglichen wird immer nach paket-bereinigten Gesamtkosten (price ×
+  // benötigte Pakete). Ohne package_info ist packages === 1, also Stückpreis.
+  //   priceMode 'offers'   -> Angebots-Pool gewinnt; nur wenn es kein Angebot
+  //                           gibt, treten die regulären Produkte an.
+  //   priceMode 'cheapest' -> absolut günstigste Wahl über ALLE Produkte,
+  //                           Angebotsstatus egal.
+  const products = (ing.product_ids || [])
     .map(id => productById[id])
     .filter(Boolean);
   if (!products.length) return null;
 
-  const offers = products.filter(p => p.on_offer);
-  const pool = offers.length ? offers : products;
-  return pool.reduce((a, b) => a.price <= b.price ? a : b);
+  let pool = products;
+  if (priceMode === 'offers') {
+    const offers = products.filter(p => p.on_offer);
+    if (offers.length) pool = offers;
+  }
+
+  const effCost = p => p.price * resolvePackage(ing, p).packages;
+  return pool.reduce((a, b) => effCost(a) <= effCost(b) ? a : b);
+}
+
+// package_info ist ein rein additives Feld aus matched_recipes.json und nur
+// fuer Paare mit eindeutiger Mengenberechnung vorhanden. Fehlt der Eintrag
+// (Dimensions-Mismatch, bewusster None-Fall in quantity_matching.py) -> 1
+// Packung, kein Multiplikator, kein Badge. Wir lesen defensiv, damit eine
+// fehlende/teilweise Struktur niemals NaN in die Preissummen traegt.
+function resolvePackage(ing, product) {
+  const info = (ing && ing.package_info && product) ? ing.package_info[product.id] : null;
+  let packages = 1, overshoot = null, dimension = null;
+  if (info && Number.isFinite(info.packages_needed) && info.packages_needed >= 1) {
+    packages  = info.packages_needed;
+    dimension = info.dimension ?? null;
+    if (Number.isFinite(info.product_amount) && Number.isFinite(info.ingredient_amount)) {
+      // Wieviel mehr man kauft, als das Rezept braucht (ceil-Ueberhang).
+      overshoot = Math.max(0, packages * info.product_amount - info.ingredient_amount);
+    }
+  }
+  return { packages, overshoot, dimension };
 }
 
 function rankRecipes(recipes, productById) {
   return recipes.map(recipe => {
     const ingMatches = recipe.I.map(ing => {
       const product = ing.product_ids?.length
-        ? pickProduct(ing.product_ids, productById)
+        ? pickProduct(ing, productById)
         : null;
-      return { raw: ing.raw, product, allProducts: (ing.product_ids || []).map(id => productById[id]).filter(Boolean) };
+      const { packages, overshoot, dimension } = resolvePackage(ing, product);
+      return {
+        raw: ing.raw, product,
+        packagesNeeded: packages, overshoot, dimension,
+        ing,  // fuer das Modal: package_info auch der Alternativ-Produkte
+        allProducts: (ing.product_ids || []).map(id => productById[id]).filter(Boolean),
+      };
     });
 
     const matched  = ingMatches.filter(m => m.product);
@@ -722,9 +851,11 @@ function rankRecipes(recipes, productById) {
     const offerScore = matched.length > 0 ? onOffer.length / matched.length : 0;
     const matchScore = recipe.I.length  > 0 ? matched.length / recipe.I.length : 0;
 
-    const totalCent = matched.reduce((s, m) => s + m.product.price, 0);
+    // Preis & Ersparnis skalieren mit der benoetigten Paketzahl. Ohne
+    // package_info ist packagesNeeded === 1, also identisch zum alten Verhalten.
+    const totalCent = matched.reduce((s, m) => s + m.product.price * m.packagesNeeded, 0);
     const regularCent = matched.reduce((s, m) =>
-      s + (m.product.price_regular || m.product.price), 0);
+      s + (m.product.price_regular || m.product.price) * m.packagesNeeded, 0);
     const savingsCent = regularCent - totalCent;
 
     return {
@@ -743,6 +874,22 @@ function rankRecipes(recipes, productById) {
 // ─── Render ───────────────────────────────────────────────────────────────────
 function formatPrice(cent) {
   return (cent / 100).toFixed(2).replace('.', ',') + ' €';
+}
+
+// ⚠️ ANNAHME — HIER PRUEFEN: die 'dimension'-Werte und die Basiseinheit von
+// ingredient_amount / product_amount stammen aus quantity_matching.py. Ich
+// rate hier engl. Feldnamen + Gramm/ml als Basis. Wenn deine dimension-Strings
+// anders heissen (z.B. "Gewicht"/"weight_g"), nur diese Map anpassen — der
+// Rest der Logik bleibt unveraendert. Unbekannte Dimension -> Ueberhang wird
+// gar nicht angezeigt (sicherer als eine falsche Einheit).
+const DIM_UNIT = { weight: 'g', volume: 'ml', count: 'Stück', piece: 'Stück', stueck: 'Stück' };
+function formatOvershoot(amount, dimension) {
+  const unit = DIM_UNIT[String(dimension || '').toLowerCase()];
+  if (!unit || !(amount > 0)) return '';
+  const fmt = n => (Math.round(n * 100) / 100).toString().replace('.', ',');
+  if (unit === 'g'  && amount >= 1000) return `${fmt(amount / 1000)} kg`;
+  if (unit === 'ml' && amount >= 1000) return `${fmt(amount / 1000)} l`;
+  return `${fmt(amount)} ${unit}`;
 }
 
 function renderCard(r) {
@@ -894,12 +1041,22 @@ function openModal(url) {
       : '';
     const tag = cheapest.link ? 'a' : 'div';
 
+    // Mengen-Anpassung fuer das gewaehlte Produkt
+    const n = m.packagesNeeded || 1;
+    const pkgBadge = n > 1 ? `<span class="ing-pkg-badge">×${n} nötig</span>` : '';
+    const priceHtml = n > 1
+      ? `${formatPrice(cheapest.price * n)} <span class="ing-pkg-unit">(${n}×${formatPrice(cheapest.price)})</span>`
+      : formatPrice(cheapest.price);
+    const overshootStr = n > 1 ? formatOvershoot(m.overshoot, m.dimension) : '';
+    const overshootHtml = overshootStr ? `<span class="ing-overshoot">≈ ${overshootStr} übrig</span>` : '';
+
     const cheapestHtml = `
       <${tag} class="ing-product-row${cheapest.link ? ' clickable' : ''}" ${linkAttr}>
-        <span class="ing-product-name">${cheapest.name}${cheapest.link ? ' <span class="ext-icon">↗</span>' : ''}</span>
+        <span class="ing-product-name">${cheapest.name}${cheapest.link ? ' <span class="ext-icon">↗</span>' : ''}${pkgBadge}</span>
         <span class="ing-match-info">
-          ${formatPrice(cheapest.price)}
+          ${priceHtml}
           ${cheapest.on_offer ? `<span class="ing-offer-tag">-${cheapest.discount}%</span>` : ''}
+          ${overshootHtml}
         </span>
       </${tag}>`;
 
@@ -908,9 +1065,13 @@ function openModal(url) {
         ${alternatives.map(p => {
           const at = p.link ? 'a' : 'div';
           const al = p.link ? `href="${p.link}" target="_blank" rel="noopener"` : '';
+          // Jede Alternative hat ggf. eine eigene Paketzahl (anderes Gewicht).
+          const an = resolvePackage(m.ing, p).packages;
+          const altBadge = an > 1 ? ` <span class="ing-pkg-badge alt">×${an}</span>` : '';
+          const altPrice = an > 1 ? formatPrice(p.price * an) : formatPrice(p.price);
           return `<${at} class="ing-alt-row${p.link ? ' clickable' : ''}" ${al}>
-            <span>${p.name}${p.link ? ' <span class="ext-icon">↗</span>' : ''}</span>
-            <span>${formatPrice(p.price)}${p.on_offer ? ` <span class="ing-offer-tag">-${p.discount}%</span>` : ''}</span>
+            <span>${p.name}${p.link ? ' <span class="ext-icon">↗</span>' : ''}${altBadge}</span>
+            <span>${altPrice}${p.on_offer ? ` <span class="ing-offer-tag">-${p.discount}%</span>` : ''}</span>
           </${at}>`;
         }).join('')}
       </div>` : '';
@@ -994,6 +1155,24 @@ function closeModal(e) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
+// Produktwahl hängt vom priceMode ab -> bei Moduswechsel muss neu geranked
+// werden (Preis, Ersparnis und Sortierung ändern sich mit der Wahl).
+function rebuild() {
+  ranked = rankRecipes(allRecipes, productById);
+  recipeByUrl = {};
+  ranked.forEach(r => { recipeByUrl[r.recipe.U] = r; });
+  renderGrid();
+}
+
+function setPriceMode(mode) {
+  if (mode === priceMode) return;
+  priceMode = mode;
+  displayCount = 60;
+  document.getElementById('btn-mode-offers').classList.toggle('active', mode === 'offers');
+  document.getElementById('btn-mode-cheapest').classList.toggle('active', mode === 'cheapest');
+  rebuild();
+}
+
 function setFilter(f) {
   activeFilter = f;
   displayCount = 60;
@@ -1027,14 +1206,12 @@ async function init() {
     allProducts = await prodRes.json();
     allRecipes  = await recRes.json();
 
-    // product_id → product lookup
-    const productById = {};
+    // product_id → product lookup (global, damit rebuild() bei Moduswechsel
+    // ohne erneutes Laden neu ranken kann)
+    productById = {};
     allProducts.forEach(p => { productById[p.id] = p; });
 
-    ranked = rankRecipes(allRecipes, productById);
-    ranked.forEach(r => { recipeByUrl[r.recipe.U] = r; });
-
-    renderGrid();
+    rebuild();
   } catch(err) {
     document.getElementById('grid').innerHTML =
       `<div class="loading">Fehler beim Laden der Daten.<br><small>${err.message}</small></div>`;
