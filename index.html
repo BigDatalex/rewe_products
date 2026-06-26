@@ -125,6 +125,8 @@
     font-weight: 500;
   }
 
+  .offer-validity strong { color: var(--accent2); }
+
   .controls {
     max-width: 1100px;
     margin: 28px auto 0;
@@ -812,7 +814,7 @@
   <div class="header-label">REWE × Chefkoch</div>
   <h1>Kochen was<br><span>im Angebot</span> ist.</h1>
   <p class="subtitle">Rezepte sortiert nach Anteil der rabattierten Zutaten — mit geschätzten Gesamtkosten.</p>
-  <p class="market-note">📍 Angebote &amp; Preise gelten für <strong>REWE Töpchiner Weg 189-193, 12309 Berlin-Lichtenrade</strong>. In anderen Märkten können Preise abweichen.</p>
+  <p class="market-note">📍 Angebote &amp; Preise gelten für <strong>REWE Töpchiner Weg 189-193, 12309 Berlin-Lichtenrade</strong>. In anderen Märkten können Preise abweichen.<span id="offer-validity" class="offer-validity" hidden></span></p>
 </header>
 
 <div class="controls">
@@ -958,6 +960,16 @@ function formatPrice(cent) {
   return (cent / 100).toFixed(2).replace('.', ',') + ' €';
 }
 
+// Escaped beliebige Rezept-/Produktdaten, bevor sie per innerHTML eingesetzt
+// werden. Schützt sowohl Text- als auch Attribut-Kontexte (', ", &, <, >).
+// Chefkoch-Titel/Zutaten können Sonderzeichen enthalten und sonst das Layout
+// zerschießen oder Markup einschleusen.
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 // ⚠️ ANNAHME — HIER PRUEFEN: die 'dimension'-Werte und die Basiseinheit von
 // ingredient_amount / product_amount stammen aus quantity_matching.py. Ich
 // rate hier engl. Feldnamen + Gramm/ml als Basis. Wenn deine dimension-Strings
@@ -995,7 +1007,7 @@ function renderCard(r) {
       ? (m.product.on_offer ? 'ing-tag offer' : 'ing-tag matched')
       : 'ing-tag';
     const label = m.raw.replace(/^\d+[^\s]*\s*/,'').split(',')[0];
-    return `<li class="${cls}">${label}</li>`;
+    return `<li class="${cls}">${escapeHtml(label)}</li>`;
   }).join('');
 
   const priceStr = r.totalCent > 0 ? formatPrice(r.totalCent) : '—';
@@ -1003,24 +1015,24 @@ function renderCard(r) {
 
   const rec = r.recipe;
   const metaParts = [];
-  if (rec.rating) metaParts.push(`★ ${rec.rating} ${rec.rating_count ? `(${rec.rating_count})` : ''}`);
-  if (rec.time)   metaParts.push(`⏱ ${rec.time}`);
-  if (rec.yield)  metaParts.push(rec.yield);
+  if (rec.rating) metaParts.push(`★ ${escapeHtml(rec.rating)} ${rec.rating_count ? `(${escapeHtml(rec.rating_count)})` : ''}`);
+  if (rec.time)   metaParts.push(`⏱ ${escapeHtml(rec.time)}`);
+  if (rec.yield)  metaParts.push(escapeHtml(rec.yield));
   const metaLine = metaParts.length
     ? `<div class="card-meta">${metaParts.join(' · ')}</div>` : '';
 
   const imageHtml = rec.image
-    ? `<div class="card-image" style="background-image:url('${rec.image}')">
+    ? `<div class="card-image" style="background-image:url('${escapeHtml(rec.image)}')">
          ${hasOffers ? `<div class="match-badge img-badge">🏷 ${r.onOfferCount} im Angebot</div>` : ''}
        </div>` : '';
 
   return `
   <div class="recipe-card ${hasOffers ? 'has-offers' : ''} ${rec.image ? 'has-image' : ''}"
-       onclick='openModal(${JSON.stringify(rec.U)})'>
+       onclick='openModal(${escapeHtml(JSON.stringify(rec.U))})'>
     ${imageHtml}
     <div class="card-body">
       <div class="card-top">
-        <div class="recipe-name">${rec.N}</div>
+        <div class="recipe-name">${escapeHtml(rec.N)}</div>
         ${(!rec.image && hasOffers) ? `<div class="match-badge">🏷 ${r.onOfferCount} im Angebot</div>` : ''}
       </div>
       ${metaLine}
@@ -1114,13 +1126,13 @@ function openModal(url) {
   if (!r) return;
 
   const ingRows = r.ingMatches.map(m => {
-    if (!m.product) return `<li><span class="ing-raw">${m.raw}</span></li>`;
+    if (!m.product) return `<li><span class="ing-raw">${escapeHtml(m.raw)}</span></li>`;
 
     const cheapest = m.product;
     const alternatives = m.allProducts.filter(p => p.id !== cheapest.id);
 
     const linkAttr = cheapest.link
-      ? `href="${cheapest.link}" target="_blank" rel="noopener"`
+      ? `href="${escapeHtml(cheapest.link)}" target="_blank" rel="noopener"`
       : '';
     const tag = cheapest.link ? 'a' : 'div';
 
@@ -1135,7 +1147,7 @@ function openModal(url) {
 
     const cheapestHtml = `
       <${tag} class="ing-product-row${cheapest.link ? ' clickable' : ''}" ${linkAttr}>
-        <span class="ing-product-name">${cheapest.name}${cheapest.link ? ' <span class="ext-icon">↗</span>' : ''}${pkgBadge}</span>
+        <span class="ing-product-name">${escapeHtml(cheapest.name)}${cheapest.link ? ' <span class="ext-icon">↗</span>' : ''}${pkgBadge}</span>
         <span class="ing-match-info">
           ${priceHtml}
           ${cheapest.on_offer ? `<span class="ing-offer-tag">-${cheapest.discount}%</span>` : ''}
@@ -1153,13 +1165,13 @@ function openModal(url) {
         <div class="ing-alternatives">
         ${alternatives.map(p => {
           const at = p.link ? 'a' : 'div';
-          const al = p.link ? `href="${p.link}" target="_blank" rel="noopener"` : '';
+          const al = p.link ? `href="${escapeHtml(p.link)}" target="_blank" rel="noopener"` : '';
           // Jede Alternative hat ggf. eine eigene Paketzahl (anderes Gewicht).
           const an = resolvePackage(m.ing, p).packages;
           const altBadge = an > 1 ? ` <span class="ing-pkg-badge alt">×${an}</span>` : '';
           const altPrice = an > 1 ? formatPrice(p.price * an) : formatPrice(p.price);
           return `<${at} class="ing-alt-row${p.link ? ' clickable' : ''}" ${al}>
-            <span>${p.name}${p.link ? ' <span class="ext-icon">↗</span>' : ''}${altBadge}</span>
+            <span>${escapeHtml(p.name)}${p.link ? ' <span class="ext-icon">↗</span>' : ''}${altBadge}</span>
             <span>${altPrice}${p.on_offer ? ` <span class="ing-offer-tag">-${p.discount}%</span>` : ''}</span>
           </${at}>`;
         }).join('')}
@@ -1167,7 +1179,7 @@ function openModal(url) {
       </details>` : '';
 
     return `<li>
-      <span class="ing-raw">${m.raw}</span>
+      <span class="ing-raw">${escapeHtml(m.raw)}</span>
       ${cheapestHtml}${altHtml}
     </li>`;
   }).join('');
@@ -1180,18 +1192,18 @@ function openModal(url) {
 
   const rec = r.recipe;
   const metaParts = [];
-  if (rec.rating) metaParts.push(`★ ${rec.rating}${rec.rating_count ? ` (${rec.rating_count} Bewertungen)` : ''}`);
-  if (rec.time)   metaParts.push(`⏱ ${rec.time}`);
-  if (rec.yield)  metaParts.push(`🍽 ${rec.yield}`);
-  if (rec.category) metaParts.push(rec.category);
+  if (rec.rating) metaParts.push(`★ ${escapeHtml(rec.rating)}${rec.rating_count ? ` (${escapeHtml(rec.rating_count)} Bewertungen)` : ''}`);
+  if (rec.time)   metaParts.push(`⏱ ${escapeHtml(rec.time)}`);
+  if (rec.yield)  metaParts.push(`🍽 ${escapeHtml(rec.yield)}`);
+  if (rec.category) metaParts.push(escapeHtml(rec.category));
   const metaLine = metaParts.length
     ? `<div class="modal-meta">${metaParts.join(' · ')}</div>` : '';
 
   const imageHtml = rec.image
-    ? `<div class="modal-image" style="background-image:url('${rec.image}')"></div>` : '';
+    ? `<div class="modal-image" style="background-image:url('${escapeHtml(rec.image)}')"></div>` : '';
 
   const keywordsHtml = (rec.keywords && rec.keywords.length)
-    ? `<div class="modal-keywords">${rec.keywords.slice(0, 8).map(k => `<span>${k}</span>`).join('')}</div>`
+    ? `<div class="modal-keywords">${rec.keywords.slice(0, 8).map(k => `<span>${escapeHtml(k)}</span>`).join('')}</div>`
     : '';
 
   // Links aller gematchten Angebots-Produkte für "Alle öffnen"
@@ -1207,7 +1219,7 @@ function openModal(url) {
   const mappingUrl = reweMappingByUrl[url];
   let openAllBtn = '';
   if (mappingUrl) {
-    openAllBtn = `<a class="modal-rewe-btn" href="${mappingUrl}" target="_blank" rel="noopener">🛒 Zutaten online bestellen *</a>`;
+    openAllBtn = `<a class="modal-rewe-btn" href="${escapeHtml(mappingUrl)}" target="_blank" rel="noopener">🛒 Zutaten online bestellen *</a>`;
   } else if (currentOfferLinks.length) {
     openAllBtn = `<button class="modal-rewe-btn" onclick="openAllOffers()">
          🛒 ${currentOfferLinks.length} Angebot${currentOfferLinks.length > 1 ? 'e' : ''} bei REWE öffnen
@@ -1217,9 +1229,9 @@ function openModal(url) {
   document.getElementById('modal-content').innerHTML = `
     <button class="modal-close" onclick="closeModal()">✕</button>
     ${imageHtml}
-    <h2>${rec.N}</h2>
+    <h2>${escapeHtml(rec.N)}</h2>
     ${metaLine}
-    <div class="modal-url"><a href="${url}" target="_blank" rel="noopener">Rezept auf Chefkoch ↗</a></div>
+    <div class="modal-url"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">Rezept auf Chefkoch ↗</a></div>
     ${keywordsHtml}
 
     <div class="modal-section-label">Zutaten & Preise</div>
@@ -1235,7 +1247,7 @@ function openModal(url) {
 
     <div class="modal-btn-row">
       ${openAllBtn}
-      <a class="modal-link-btn" href="${url}" target="_blank" rel="noopener">Zum Rezept →</a>
+      <a class="modal-link-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">Zum Rezept →</a>
     </div>
     ${(currentOfferLinks.length || mappingUrl) ? `<p class="modal-market-hint">Angebotspreise gelten für REWE Berlin-Lichtenrade. Bitte diesen Markt bei REWE auswählen.</p>` : ''}
     ${mappingUrl ? `<p class="modal-market-hint">* Führe die Browsererweiterung aus, um die günstigen Produkte zu laden.</p>` : ''}
@@ -1295,6 +1307,22 @@ document.getElementById('search').addEventListener('input', e => {
   renderGrid();
 });
 
+// Spätestes Angebots-Enddatum (offer_until, ISO 'YYYY-MM-DD') ermitteln und als
+// Gültigkeitshinweis im Header anzeigen. ISO-Datumsstrings sortieren
+// lexikografisch = chronologisch, daher genügt ein String-Vergleich.
+function renderOfferValidity() {
+  const el = document.getElementById('offer-validity');
+  if (!el) return;
+  let maxDate = '';
+  for (const p of allProducts) {
+    if (p.on_offer && p.offer_until && p.offer_until > maxDate) maxDate = p.offer_until;
+  }
+  if (!maxDate) { el.hidden = true; return; }
+  const [y, m, d] = maxDate.split('-');
+  el.innerHTML = ` 🏷 Angebote gültig bis <strong>${d}.${m}.${y}</strong>`;
+  el.hidden = false;
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
   try {
@@ -1326,6 +1354,7 @@ async function init() {
     productById = {};
     allProducts.forEach(p => { productById[p.id] = p; });
 
+    renderOfferValidity();
     rebuild();
   } catch(err) {
     document.getElementById('grid').innerHTML =

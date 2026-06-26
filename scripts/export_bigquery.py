@@ -47,7 +47,11 @@ def main():
             listing_price,
             listing_regular_price,
             listing_discount_rate,
-            listing_discount_valid_to,
+            -- REWE liefert das Gültig-bis als lokales Mitternachts-Datum; in
+            -- BigQuery liegt es als UTC-TIMESTAMP (z. B. 27.06. 00:00
+            -- Europe/Berlin == 26.06. 22:00 UTC). Direkt nach Europe/Berlin
+            -- formatieren, sonst verliert das Datum einen Tag.
+            FORMAT_TIMESTAMP('%Y-%m-%d', listing_discount_valid_to, 'Europe/Berlin') AS listing_discount_valid_to,
             listing_grammage,
             image_link,
             link
@@ -79,7 +83,6 @@ def main():
         else:
             on_offer = False
 
-        import math, pandas as pd
         def safe(val):
             try:
                 return "" if val is None or (isinstance(val, float) and math.isnan(val)) else str(val)
@@ -94,7 +97,7 @@ def main():
             "price":        int(row["listing_price"]),
             "price_regular": int(row["listing_regular_price"]) if on_offer else None,
             "discount":     int(discount) if on_offer else None,
-            "offer_until":  str(row["listing_discount_valid_to"])[:10] if on_offer else None,
+            "offer_until":  (safe(row["listing_discount_valid_to"]) or None) if on_offer else None,
             "grammage":     safe(row["listing_grammage"]),
             "image":        safe(row["image_link"]),
             "link":         safe(row["link"]),
