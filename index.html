@@ -30,10 +30,54 @@
   }
 
   header {
+    position: relative;
     padding: 48px 32px 32px;
     max-width: 1100px;
     margin: 0 auto;
     border-bottom: 1px solid var(--border);
+  }
+
+  .ext-link {
+    position: absolute;
+    top: 32px;
+    right: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 260px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    text-decoration: none;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+
+  .ext-link:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .ext-link .ext-icon { font-size: 22px; line-height: 1; }
+
+  .ext-link .ext-text { display: flex; flex-direction: column; line-height: 1.3; }
+
+  .ext-link .ext-text strong {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  .ext-link .ext-text span {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 720px) {
+    .ext-link {
+      position: static;
+      margin-bottom: 20px;
+    }
   }
 
   .header-label {
@@ -730,6 +774,13 @@
 <body>
 
 <header>
+  <a class="ext-link" href="https://drive.google.com/file/d/12cdGeIqHYNoCrbT1YT0lc921OBMY8sed/view?usp=sharing" target="_blank" rel="noopener">
+    <span class="ext-icon">🧩</span>
+    <span class="ext-text">
+      <strong>Browser-Extension</strong>
+      <span>für Chrome &amp; Edge — Firefox folgt</span>
+    </span>
+  </a>
   <div class="header-label">REWE × Chefkoch</div>
   <h1>Kochen was<br><span>im Angebot</span> ist.</h1>
   <p class="subtitle">Rezepte sortiert nach Anteil der rabattierten Zutaten — mit geschätzten Gesamtkosten.</p>
@@ -1121,10 +1172,7 @@ function openModal(url) {
   const mappingUrl = reweMappingByUrl[url];
   let openAllBtn = '';
   if (mappingUrl) {
-    const label = currentOfferLinks.length
-      ? `🛒 ${currentOfferLinks.length} Angebot${currentOfferLinks.length > 1 ? 'e' : ''} bei REWE kaufen`
-      : '🛒 Rezept bei REWE kaufen';
-    openAllBtn = `<a class="modal-rewe-btn" href="${mappingUrl}" target="_blank" rel="noopener">${label}</a>`;
+    openAllBtn = `<a class="modal-rewe-btn" href="${mappingUrl}" target="_blank" rel="noopener">🛒 Zutaten online bestellen *</a>`;
   } else if (currentOfferLinks.length) {
     openAllBtn = `<button class="modal-rewe-btn" onclick="openAllOffers()">
          🛒 ${currentOfferLinks.length} Angebot${currentOfferLinks.length > 1 ? 'e' : ''} bei REWE öffnen
@@ -1155,6 +1203,7 @@ function openModal(url) {
       <a class="modal-link-btn" href="${url}" target="_blank" rel="noopener">Zum Rezept →</a>
     </div>
     ${(currentOfferLinks.length || mappingUrl) ? `<p class="modal-market-hint">Angebotspreise gelten für REWE Berlin-Lichtenrade. Bitte diesen Markt bei REWE auswählen.</p>` : ''}
+    ${mappingUrl ? `<p class="modal-market-hint">* Führe die Browsererweiterung aus, um die günstigen Produkte zu laden.</p>` : ''}
   `;
 
   document.getElementById('modal-overlay').classList.add('open');

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "REWE Rezept-Optimierer",
+  "version": "1.0.0",
+  "description": "Tauscht auf REWE-Mapping-Seiten die Produkte auf die günstigsten eigenen Matches.",
+  "permissions": ["scripting"],
+  "host_permissions": [
+    "https://www.rewe.de/*",
+    "https://shop.rewe.de/*",
+    "https://bigdatalex.github.io/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "action": {
+    "default_title": "Produkte auf günstigste Matches tauschen",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  }
+}
