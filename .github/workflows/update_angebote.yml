@@ -36,10 +36,16 @@ jobs:
           BQ_TABLE: ${{ secrets.BQ_TABLE }}
         run: python scripts/export_bigquery.py
 
+      # Mapping-Daten für die Browser-Erweiterung neu berechnen (cheapest-Modus).
+      # Hängt von den frischen Angeboten ab → läuft direkt nach dem Export.
+      # Braucht nur die Python-Standardbibliothek.
+      - name: cheapest_mappings.json bauen
+        run: python scripts/build_cheapest_mappings.py
+
       - name: Änderungen committen und pushen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/angebote.json
+          git add data/angebote.json data/cheapest_mappings.json
           git diff --staged --quiet || git commit -m "Angebote aktualisiert: $(date -u '+%Y-%m-%d')"
           git push
