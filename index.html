@@ -528,6 +528,9 @@
     padding: 12px 20px;
     cursor: pointer;
     transition: opacity 0.2s;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
   }
 
   .modal-rewe-btn:hover { opacity: 0.85; }
@@ -1017,6 +1020,7 @@ function loadMore() {
 // ─── Modal ────────────────────────────────────────────────────────────────────
 let recipeByUrl = {};
 let currentOfferLinks = [];
+let reweMappingByUrl = {};
 
 function openAllOffers() {
   // Öffnet jeden Angebots-Link in neuem Tab. Browser können Popups blocken;
@@ -1111,10 +1115,21 @@ function openModal(url) {
   // dedupe
   currentOfferLinks = [...new Set(offerLinks)];
 
-  const openAllBtn = currentOfferLinks.length
-    ? `<button class="modal-rewe-btn" onclick="openAllOffers()">
+  // Passender REWE-Mapping-Link (über die Chefkoch-URL des Rezepts).
+  // Wenn vorhanden, öffnet der Button das fertige Rezept-Mapping bei REWE
+  // (statt jede Zutat einzeln). Sonst Fallback auf "alle Angebote öffnen".
+  const mappingUrl = reweMappingByUrl[url];
+  let openAllBtn = '';
+  if (mappingUrl) {
+    const label = currentOfferLinks.length
+      ? `🛒 ${currentOfferLinks.length} Angebot${currentOfferLinks.length > 1 ? 'e' : ''} bei REWE kaufen`
+      : '🛒 Rezept bei REWE kaufen';
+    openAllBtn = `<a class="modal-rewe-btn" href="${mappingUrl}" target="_blank" rel="noopener">${label}</a>`;
+  } else if (currentOfferLinks.length) {
+    openAllBtn = `<button class="modal-rewe-btn" onclick="openAllOffers()">
          🛒 ${currentOfferLinks.length} Angebot${currentOfferLinks.length > 1 ? 'e' : ''} bei REWE öffnen
-       </button>` : '';
+       </button>`;
+  }
 
   document.getElementById('modal-content').innerHTML = `
     <button class="modal-close" onclick="closeModal()">✕</button>
@@ -1139,7 +1154,7 @@ function openModal(url) {
       ${openAllBtn}
       <a class="modal-link-btn" href="${url}" target="_blank" rel="noopener">Zum Rezept →</a>
     </div>
-    ${currentOfferLinks.length ? `<p class="modal-market-hint">Angebotspreise gelten für REWE Berlin-Lichtenrade. Bitte diesen Markt bei REWE auswählen.</p>` : ''}
+    ${(currentOfferLinks.length || mappingUrl) ? `<p class="modal-market-hint">Angebotspreise gelten für REWE Berlin-Lichtenrade. Bitte diesen Markt bei REWE auswählen.</p>` : ''}
   `;
 
   document.getElementById('modal-overlay').classList.add('open');
@@ -1199,12 +1214,28 @@ document.getElementById('search').addEventListener('input', e => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
   try {
-    const [prodRes, recRes] = await Promise.all([
+    const [prodRes, recRes, mapRes] = await Promise.all([
       fetch('data/angebote.json'),
       fetch('data/matched_recipes.json'),
+      fetch('data/rewe_mappings.jsonl'),
     ]);
     allProducts = await prodRes.json();
     allRecipes  = await recRes.json();
+
+    // REWE-Mapping-Links pro Rezept: chefkoch_url (== recipe.U) -> rewe_mapping_url
+    // Die jsonl-Datei enthält eine JSON-Zeile pro Rezept.
+    reweMappingByUrl = {};
+    const mapText = await mapRes.text();
+    mapText.split('\n').forEach(line => {
+      line = line.trim();
+      if (!line) return;
+      try {
+        const m = JSON.parse(line);
+        if (m.chefkoch_url && m.rewe_mapping_url) {
+          reweMappingByUrl[m.chefkoch_url] = m.rewe_mapping_url;
+        }
+      } catch (e) { /* defekte Zeile überspringen */ }
+    });
 
     // product_id → product lookup (global, damit rebuild() bei Moduswechsel
     // ohne erneutes Laden neu ranken kann)
