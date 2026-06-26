@@ -592,8 +592,36 @@
     color: var(--text);
   }
 
-  .ing-alternatives {
+  .ing-alt-details {
     margin-top: 2px;
+  }
+
+  .ing-alt-details > summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--accent);
+    padding: 2px 0;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .ing-alt-details > summary::-webkit-details-marker { display: none; }
+
+  .ing-alt-details > summary::before {
+    content: '▸';
+    font-size: 9px;
+    transition: transform 0.15s;
+  }
+
+  .ing-alt-details[open] > summary::before { transform: rotate(90deg); }
+
+  .ing-alt-details > summary:hover { text-decoration: underline; }
+
+  .ing-alternatives {
+    margin-top: 4px;
     padding-left: 8px;
     border-left: 2px solid var(--border);
     display: flex;
@@ -1115,8 +1143,14 @@ function openModal(url) {
         </span>
       </${tag}>`;
 
+    const altLabel = alternatives.length === 1
+      ? '1 weiteres Produkt'
+      : `${alternatives.length} weitere Produkte`;
+
     const altHtml = alternatives.length ? `
-      <div class="ing-alternatives">
+      <details class="ing-alt-details">
+        <summary>${altLabel}</summary>
+        <div class="ing-alternatives">
         ${alternatives.map(p => {
           const at = p.link ? 'a' : 'div';
           const al = p.link ? `href="${p.link}" target="_blank" rel="noopener"` : '';
@@ -1129,7 +1163,8 @@ function openModal(url) {
             <span>${altPrice}${p.on_offer ? ` <span class="ing-offer-tag">-${p.discount}%</span>` : ''}</span>
           </${at}>`;
         }).join('')}
-      </div>` : '';
+        </div>
+      </details>` : '';
 
     return `<li>
       <span class="ing-raw">${m.raw}</span>
