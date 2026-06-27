@@ -49,3 +49,45 @@ jobs:
           git add data/angebote.json data/cheapest_mappings.json
           git diff --staged --quiet || git commit -m "Angebote aktualisiert: $(date -u '+%Y-%m-%d')"
           git push
+
+  # Qualitäts-Gate: rechnet Katalog-Drift-Metriken aus den frisch gebauten
+  # Artefakten (kein Neu-Scrape). Eigener Job -> der Export/Publish bleibt
+  # grün, auch wenn dieser Gate rot wird (saubere Signal-Trennung).
+  quality-gate:
+    needs: export
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo auschecken (frisch gepushter Stand)
+        uses: actions/checkout@v4
+        with:
+          ref: main   # nicht der auslösende SHA, sondern der vom export gepushte Commit
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Nur Standardbibliothek -> kein pip install nötig.
+      - name: Qualitäts-Metriken berechnen
+        id: metrics
+        run: python scripts/quality_gate.py
+
+      # Snapshot + Historie immer fortschreiben (auch bei Regression), sonst
+      # wandert die Diff-Baseline nie weiter und der Alarm bliebe ewig stehen.
+      - name: Snapshot & Historie committen
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/catalog_ids_snapshot.json data/metrics_history.csv
+          git diff --staged --quiet || git commit -m "Quality-Metriken: $(date -u '+%Y-%m-%d')"
+          git push
+
+      # Harter Fail nur auf der Invariante (stale muss 0 sein). missed_deals
+      # ist ein Trend -> nur Warnung im Metrik-Step, kein Fail.
+      - name: Bei Stale-Matches fehlschlagen
+        if: always() && steps.metrics.outputs.stale != '0'
+        run: |
+          echo "::error::${{ steps.metrics.outputs.stale }} gematchte Produkte sind nicht mehr im Katalog (delisted) -- Matching lokal neu laufen lassen."
+          exit 1
