@@ -36,8 +36,42 @@ jobs:
           BQ_TABLE: ${{ secrets.BQ_TABLE }}
         run: python scripts/export_bigquery.py
 
+      # --- Rezept-Matching gegen die frischen Angebote ------------------------
+      # Muss NACH dem angebote-Export (braucht data/angebote.json) und VOR
+      # cheapest_mappings laufen (das liest das frische matched_recipes.json).
+      # --from-matched matcht nur BEKANNTE Rezepte (aus dem committeten
+      # matched_recipes.json) gegen den aktuellen Angebotskatalog.
+      - name: Matching-Abhängigkeiten installieren
+        run: pip install -r matching/requirements.txt
+
+      # Neuesten Modell-Tag aufloesen -> Cache-Key. So wird das ~200-MB-Modell
+      # nur neu gezogen, wenn tatsaechlich ein neuer Lauf getaggt wurde.
+      - name: Modell-Revision auflösen
+        id: ce_model
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: echo "revision=$(python matching/download_model.py --print-revision)" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-Encoder-Modell cachen
+        uses: actions/cache@v4
+        with:
+          path: matching/cross_encoder_model6_lauf18-final-produktionsmodell
+          key: ce-model-${{ steps.ce_model.outputs.revision }}
+
+      # CE_MODEL_VERSION bewusst NICHT setzen: model_fingerprint nimmt dann den
+      # Inhalts-Hash der Gewichte (= Hash des geseedeten ce_pair_cache.json) ->
+      # Cache-Hit. Mit gesetzter Version wuerde der Cache faelschlich verworfen.
+      - name: Cross-Encoder-Modell laden
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          CE_MODEL_REVISION: ${{ steps.ce_model.outputs.revision }}
+        run: python matching/download_model.py
+
+      - name: Rezepte gegen Angebote matchen
+        run: python matching/match_jsonl_cache2.py --from-matched
+
       # Mapping-Daten für die Browser-Erweiterung neu berechnen (cheapest-Modus).
-      # Hängt von den frischen Angeboten ab → läuft direkt nach dem Export.
+      # Liest das frisch gematchte matched_recipes.json + angebote.json.
       # Braucht nur die Python-Standardbibliothek.
       - name: cheapest_mappings.json bauen
         run: python scripts/build_cheapest_mappings.py
@@ -46,7 +80,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/angebote.json data/cheapest_mappings.json
+          git add data/angebote.json data/cheapest_mappings.json data/matched_recipes.json data/ce_pair_cache.json
           git diff --staged --quiet || git commit -m "Angebote aktualisiert: $(date -u '+%Y-%m-%d')"
           git push
 

@@ -1,0 +1,27 @@
+# Matching-Pipeline (match_jsonl_cache2.py + Import-Kette) — Runner-Dependencies.
+# Gepinnt auf die lokal getesteten Versionen, damit CI bit-stabil dasselbe rechnet.
+#
+# torch: CPU-Wheel erzwingen. Lokal laeuft cu130 (~2 G CUDA) — auf GitHub-Runnern
+# gibt es keine GPU, und der CUDA-Build wuerde den Job nur aufblaehen/verlangsamen.
+# Der +cpu-Pin matcht ausschliesslich das CPU-Wheel der PyTorch-Index-URL.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.12.0+cpu
+
+# Direkt importiert in match_jsonl_cache2.py / state_classifier / ingredient_preprocessing
+numpy==2.4.6
+pandas==3.0.3
+rapidfuzz==3.14.5
+tqdm==4.68.2
+
+# Modell-Stack (CrossEncoder + Bi-Encoder laden)
+sentence-transformers==5.5.1
+transformers==5.11.0
+
+# Modell-Download im Workflow (download_model.py: snapshot_download)
+huggingface-hub==1.19.0
+
+# Transitiv von sentence-transformers (sklearn/scipy/pillow) — gepinnt fuer
+# reproduzierbare CI-Laeufe.
+scikit-learn==1.9.0
+scipy==1.17.1
+pillow==12.2.0
