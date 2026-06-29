@@ -142,18 +142,31 @@ def classify_ingredient_states(ingredient_text: str) -> set[str]:
     if _contains_any(ingredient_text, _NUR_VERARBEITET_GEWUERZE):
         return {"getrocknet_verarbeitet"}
     if _contains_any(ingredient_text, _KRAEUTER_MEHRDEUTIG):
-        # "gehackt" zusaetzlich genannt -> verarbeitete Form leicht
-        # wahrscheinlicher, frisch aber nicht ausgeschlossen (z.B. frisch
-        # gekauft und selbst gehackt)
-        return {"frisch", "getrocknet_verarbeitet"}
+        # Nackter Kraeutername OHNE Frische-Signal: im Handel als frische
+        # Topfpflanze, getrocknetes Gewuerz UND als TK-Ware (Tiefkuehl-
+        # Kraeuter) gleichermassen gaengig -- alle drei plausibel. "tk" hier
+        # bewusst mit drin, weil generische Kraeuter-Zutaten gegen TK-
+        # kategorisierte Produkte (z.B. "Schnittlauch 50g" in "Tiefkuehl-
+        # Kraeuter") sonst faelschlich geblockt werden (validiert auf dem
+        # Test-Split lauf17: 1 von 3 verlorenen Treffern). Der explizite
+        # frisch-Zweig oben bleibt unberuehrt streng.
+        return {"frisch", "tk", "getrocknet_verarbeitet"}
     if _contains_any(ingredient_text, _MEIST_KONSERVE_ODER_TK):
         return {"konserve", "tk", "frisch"}
     if _contains_any(ingredient_text, _FILET_MEHRDEUTIG):
         return {"frisch", "tk"}
     if _GEHACKT_PATTERN.search(ingredient_text):
         return {"frisch", "tk", "konserve"}  # generisches "gehackt", Quelle unklar
-    # Regel 8: kein Attribut, keine bekannte Mehrdeutigkeit -> frisch
-    return {"frisch"}
+    # Regel 8 (Fallback): kein Attribut, keine bekannte Mehrdeutigkeit.
+    # Frisch ist der Normalfall, ABER ohne explizites Frische-Signal ist die
+    # TK-Variante eines Lebensmittels genauso ein gueltiger Treffer (z.B.
+    # "Porree" -> "Rahmgemüse Porree", "Brötchen" -> TK-Aufbackbroetchen).
+    # Daher {frisch, tk}, damit generisch->TK nicht mehr blockiert wird
+    # (validiert auf Test-Split lauf17: behebt 2 der 3 verlorenen Treffer).
+    # Konserve/getrocknet bleiben aussen vor -- die signalisiert die Zutat
+    # i.d.R. explizit, und sie blind zuzulassen wuerde zu viele FPs durch-
+    # lassen.
+    return {"frisch", "tk"}
 
 
 def is_state_mismatch(ingredient_text: str, product_name: str, category: str) -> bool:

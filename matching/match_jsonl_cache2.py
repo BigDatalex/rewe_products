@@ -39,6 +39,8 @@ from tqdm import tqdm
 
 from state_classifier import is_state_mismatch  # Frisch/TK/Konserve-Vorprüfung,
                                                    # siehe state_classifier.py
+from color_classifier import is_color_mismatch  # Farb-Vorprüfung (post-CE Veto),
+                                                   # siehe color_classifier.py
 from ingredient_preprocessing import dedup_key  # form-bewusster Dedup-Schlüssel
                                                    # (normalize + Form-Tag), trennt
                                                    # frisch/Dose/getrocknet
@@ -608,6 +610,12 @@ def match(
                               # 30% der bekannten False Positives, bei
                               # 2.5% Risiko auf bereits ueber-Threshold-
                               # liegende echte Treffer)
+                if is_color_mismatch(raw_ingredient, p["name"]):
+                    continue  # expliziter Farbwiderspruch (z.B. Zutat weiß,
+                              # Produkt rot) -- trotz hohem CE-Score ablehnen
+                              # (siehe color_classifier.py; konservativ: blockt
+                              # nur wenn beide Seiten widersprechende Farben
+                              # tragen)
                 matches.append(p["id"])
             norm_to_match[key] = matches if matches else None
 
