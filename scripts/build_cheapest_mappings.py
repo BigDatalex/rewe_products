@@ -1,25 +1,33 @@
 #!/usr/bin/env python3
-"""Baut data/cheapest_mappings.json für die Browser-Erweiterung.
+"""Baut die Mapping-Dateien für die Browser-Erweiterung.
 
 Pro Rezept (das einen REWE-Mapping-Link hat) wird vorberechnet, welches REWE-
-Produkt pro Zutat das absolut günstigste ist ("cheapest"-Modus) und wie viele
-Packungen davon nötig sind. Das Ergebnis ist nach dem Mapping-Hash aus der
-rewe_mapping_url indexiert, damit die Erweiterung auf der Mapping-Seite per
-URL-Hash genau ihren Eintrag nachschlagen kann.
+Produkt pro Zutat genommen werden soll und wie viele Packungen nötig sind. Zwei
+Modi:
+    cheapest -> data/cheapest_mappings.json : absolut günstigstes Produkt
+    offers   -> data/offer_mappings.json    : günstigstes Produkt, das AKTUELL
+                im Angebot ist (on_offer); gibt es für eine Zutat kein Angebot,
+                Fallback auf das absolut günstigste Produkt (wie cheapest).
 
-Das ist die Python-Portierung von pickProduct()/resolvePackage() aus index.html
-(priceMode === 'cheapest').
+Das Ergebnis ist nach dem Mapping-Hash aus der rewe_mapping_url indexiert, damit
+die Erweiterung auf der Mapping-Seite per URL-Hash genau ihren Eintrag
+nachschlägt. Beide Dateien haben identische Struktur -- die Extension lädt je
+nach Modus-Schalter die eine oder andere.
+
+Portierung von pickProduct()/resolvePackage() aus index.html.
 
 Eingaben:
     data/matched_recipes.json   – Rezepte mit Zutaten (raw, product_ids, package_info)
-    data/angebote.json          – Produkte (id, price, ...)
+    data/angebote.json          – Produkte (id, price, on_offer, ...)
     data/rewe_mappings.jsonl    – chefkoch_url ↔ rewe_mapping_url
 
-Ausgabe:
-    data/cheapest_mappings.json
+Aufruf:
+    python scripts/build_cheapest_mappings.py                 # nur cheapest (default)
+    python scripts/build_cheapest_mappings.py --mode offers   # nur Angebote
+    python scripts/build_cheapest_mappings.py --mode both      # beide Dateien
 """
+import argparse
 import json
-import math
 import re
 from collections import OrderedDict
 from pathlib import Path
@@ -30,7 +38,11 @@ DATA = ROOT / "data"
 MATCHED   = DATA / "matched_recipes.json"
 ANGEBOTE  = DATA / "angebote.json"
 MAPPINGS  = DATA / "rewe_mappings.jsonl"
-OUT       = DATA / "cheapest_mappings.json"
+
+OUT_BY_MODE = {
+    "cheapest": DATA / "cheapest_mappings.json",
+    "offers":   DATA / "offer_mappings.json",
+}
 
 
 # ─── Zutatenname normalisieren ────────────────────────────────────────────────
@@ -85,6 +97,27 @@ def pick_cheapest(ing: dict, product_by_id: dict):
     return best, resolve_packages(ing, best)
 
 
+def pick_offer(ing: dict, product_by_id: dict):
+    """Günstigstes Produkt unter den Kandidaten, die AKTUELL im Angebot sind
+    (on_offer=True). Gibt es für die Zutat KEIN Angebot, Fallback auf das
+    absolut günstigste Produkt (pick_cheapest) -- so wird jede matchbare Zutat
+    gesetzt, Angebote nur bevorzugt. None nur, wenn gar kein Produkt matcht.
+    """
+    cands = [pid for pid in (ing.get("product_ids") or [])
+             if pid in product_by_id and product_by_id[pid].get("on_offer")]
+    if not cands:
+        return pick_cheapest(ing, product_by_id)  # kein Angebot -> günstigstes überhaupt
+
+    def eff_cost(pid):
+        return product_by_id[pid]["price"] * resolve_packages(ing, pid)
+
+    best = min(cands, key=eff_cost)
+    return best, resolve_packages(ing, best)
+
+
+PICKERS = {"cheapest": pick_cheapest, "offers": pick_offer}
+
+
 def mapping_hash(url: str) -> str:
     """Letztes Pfadsegment der rewe_mapping_url = eindeutiger Rezept-Hash."""
     return url.rstrip("/").rsplit("/", 1)[-1]
@@ -120,21 +153,8 @@ def dedupe_ingredients(entries: list) -> list:
     return out
 
 
-def main() -> None:
-    recipes = json.loads(MATCHED.read_text(encoding="utf-8"))
-    products = json.loads(ANGEBOTE.read_text(encoding="utf-8"))
-    product_by_id = {p["id"]: p for p in products}
-
-    # chefkoch_url → (hash, mapping_url, recipe_name)
-    map_by_chefkoch = {}
-    for line in MAPPINGS.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        m = json.loads(line)
-        if m.get("chefkoch_url") and m.get("rewe_mapping_url"):
-            map_by_chefkoch[m["chefkoch_url"]] = m
-
+def build_mappings(recipes, product_by_id, map_by_chefkoch, pick) -> tuple[dict, dict]:
+    """Baut das Mapping-Dict für eine Produktwahl-Funktion `pick`."""
     result = {}
     stats = {"recipes": 0, "no_mapping": 0, "ingredients": 0, "unmatched_ing": 0}
 
@@ -148,7 +168,7 @@ def main() -> None:
         entries = []
         for ing in rec.get("I", []):
             stats["ingredients"] += 1
-            picked = pick_cheapest(ing, product_by_id)
+            picked = pick(ing, product_by_id)
             if not picked:
                 stats["unmatched_ing"] += 1
                 continue
@@ -172,15 +192,48 @@ def main() -> None:
         }
         stats["recipes"] += 1
 
-    OUT.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    return result, stats
 
-    size_kb = OUT.stat().st_size / 1024
-    print(f"✔ {OUT.relative_to(ROOT)} geschrieben")
-    print(f"  Rezepte mit Mapping:      {stats['recipes']}")
-    print(f"  Rezepte ohne Mapping:     {stats['no_mapping']}")
-    print(f"  Zutaten gesamt:           {stats['ingredients']}")
-    print(f"  Zutaten ohne Produkt:     {stats['unmatched_ing']}")
-    print(f"  Dateigröße:               {size_kb:.0f} KB")
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--mode", choices=["cheapest", "offers", "both"],
+                    default="cheapest",
+                    help="Welche Datei(en) bauen (default: cheapest).")
+    args = ap.parse_args()
+
+    modes = ["cheapest", "offers"] if args.mode == "both" else [args.mode]
+
+    # Eingaben EINMAL laden -- beide Modi teilen denselben Katalog/Rezeptstand.
+    recipes = json.loads(MATCHED.read_text(encoding="utf-8"))
+    products = json.loads(ANGEBOTE.read_text(encoding="utf-8"))
+    product_by_id = {p["id"]: p for p in products}
+
+    map_by_chefkoch = {}
+    for line in MAPPINGS.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = json.loads(line)
+        if m.get("chefkoch_url") and m.get("rewe_mapping_url"):
+            map_by_chefkoch[m["chefkoch_url"]] = m
+
+    n_on_offer = sum(1 for p in products if p.get("on_offer"))
+    print(f"Katalog: {len(products)} Produkte, davon {n_on_offer} im Angebot.\n")
+
+    for mode in modes:
+        result, stats = build_mappings(
+            recipes, product_by_id, map_by_chefkoch, PICKERS[mode])
+        out = OUT_BY_MODE[mode]
+        out.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+        size_kb = out.stat().st_size / 1024
+        print(f"✔ [{mode}] {out.relative_to(ROOT)} geschrieben")
+        print(f"  Rezepte mit Mapping:      {stats['recipes']}")
+        print(f"  Rezepte ohne Mapping:     {stats['no_mapping']}")
+        print(f"  Zutaten gesamt:           {stats['ingredients']}")
+        print(f"  Zutaten ohne Produkt:     {stats['unmatched_ing']}")
+        print(f"  Dateigröße:               {size_kb:.0f} KB\n")
 
 
 if __name__ == "__main__":

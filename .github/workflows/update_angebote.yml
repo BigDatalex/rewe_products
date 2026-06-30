@@ -70,17 +70,18 @@ jobs:
       - name: Rezepte gegen Angebote matchen
         run: python matching/match_jsonl_cache2.py --from-matched
 
-      # Mapping-Daten für die Browser-Erweiterung neu berechnen (cheapest-Modus).
-      # Liest das frisch gematchte matched_recipes.json + angebote.json.
-      # Braucht nur die Python-Standardbibliothek.
-      - name: cheapest_mappings.json bauen
-        run: python scripts/build_cheapest_mappings.py
+      # Mapping-Daten für die Browser-Erweiterung neu berechnen -- BEIDE Modi:
+      # cheapest_mappings.json (günstigstes Produkt) und offer_mappings.json
+      # (günstigstes Angebots-Produkt). Liest das frisch gematchte
+      # matched_recipes.json + angebote.json. Nur Python-Standardbibliothek.
+      - name: Mapping-Dateien bauen (cheapest + offers)
+        run: python scripts/build_cheapest_mappings.py --mode both
 
       - name: Änderungen committen und pushen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/angebote.json data/cheapest_mappings.json data/matched_recipes.json data/ce_pair_cache.json
+          git add data/angebote.json data/cheapest_mappings.json data/offer_mappings.json data/matched_recipes.json data/ce_pair_cache.json
           git diff --staged --quiet || git commit -m "Angebote aktualisiert: $(date -u '+%Y-%m-%d')"
           git push
 
