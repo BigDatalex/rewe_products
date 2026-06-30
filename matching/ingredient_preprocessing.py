@@ -24,10 +24,17 @@ from quantity_matching import extract_ingredient_quantity, _VAGUE_UNITS
 # Dedup-Schlüssel -- gleiche Zutat -> gleicher Key. Bei Änderungen dort hier
 # mitziehen.
 _UNITS = (
-    r"\b(g|kg|mg|ml|l|el|tl|msp\.?|stück|stk\.?|prise[n]?|becher|dose[n]?|"
-    r"pck\.?|packung(en)?|päckchen|zehe\/n|zehe[n]?|bund|scheibe[n]?|"
-    r"m\.-große[snr]?|gr\.|kl\.|große[snr]?|kleine[snr]?|etwas|evtl\.?|"
-    r"ca\.?|nach belieben)\b"
+    # Einheiten am Zutatenanfang. (?:/[a-zäöüß]+)? schluckt den
+    # Chefkoch-Plural-Slash ("Dose/n", "Tasse/n", "Zehe/n"), sonst bliebe
+    # ein verwaistes "n" am Namen kleben ("/n Linsen"). Das abschließende
+    # (?![a-zäöüß]) statt \b schützt Komposita ("Blattspinat", "Glasnudeln")
+    # und lässt zugleich Abkürzungen mit Punkt zu ("kl.", "gr.", "evtl.").
+    r"\b(?:g|kg|mg|ml|l|el|tl|msp|msl|stück|stk|prise[n]?|becher|dose[n]?|"
+    r"tasse[n]?|stange[n]?|tüte[n]?|tube[n]?|knolle[n]?|kugel[n]?|flasche[n]?|"
+    r"kopf|köpfe|glas|gläser|blatt|blätter|tropfen|handvoll|"
+    r"pck|packung(?:en)?|päckchen|zehe[n]?|scheibe[n]?|bund|"
+    r"m\.-große[snr]?|gr|kl|große[snr]?|kleine[snr]?|etwas|evtl|ca|"
+    r"nach belieben)(?:/[a-zäöüß]+)?\.?(?![a-zäöüß])"
 )
 
 
@@ -44,16 +51,21 @@ def normalize(text: str) -> str:
 # Form-Token: holt die EINE produktunterscheidende Form zurück, die normalize
 # wegwirft (Konserve/TK/getrocknet/gemahlen). Ohne Marker = Default (frisch).
 #
-# Wichtig: jede Klasse fasst ihre Synonyme zusammen (dose/passiert/püriert ->
-# "konserve"), damit "Dose Tomaten" und "passierte Tomaten" NICHT über-getrennt
-# werden. Bei mehreren Klassen gewinnt die DOMINANTE (Listenreihenfolge), es
-# wird also immer höchstens EIN Tag angehängt.
+# Wichtig: jede Klasse fasst ihre Synonyme zusammen. Bei mehreren Treffern
+# gewinnt die DOMINANTE (Listenreihenfolge), es wird also immer höchstens EIN
+# Tag angehängt.
+#
+# passierte/pürierte Tomaten (Passata) sind ein ANDERES Produkt als geschälte/
+# stückige Dosentomaten -> eigene Klasse "passiert", VOR konserve gelistet
+# (gewinnt, damit "Dose passierte Tomaten" als Passata zählt, nicht als Dose).
+# Reine Zubereitung (gehackt/gewürfelt/geschält/in Scheiben/gerieben/...) bleibt
+# bewusst OHNE Klasse, damit solche Varianten weiter kollabieren.
 #
 # "frisch" ist bewusst KEINE Klasse: es ist mehrdeutig ("frisch gemahlen" =
 # Zubereitung, nicht Form) -- die Abwesenheit eines Tags steht für frisch.
 _FORM_CLASSES = [
-    ("konserve",   re.compile(r"\b(dose|dosen|konserve|konserviert|"
-                              r"passiert|püriert)\w*", re.I)),
+    ("passiert",   re.compile(r"\b(passiert|passata|passati|püriert)\w*", re.I)),
+    ("konserve",   re.compile(r"\b(dose|dosen|konserve|konserviert)\w*", re.I)),
     ("tk",         re.compile(r"\b(tk|tiefgekühlt|tiefkühl|gefroren)\w*", re.I)),
     ("getrocknet", re.compile(r"\b(getrocknet|gedörrt)\w*", re.I)),
     ("gemahlen",   re.compile(r"\bgemahlen\w*", re.I)),

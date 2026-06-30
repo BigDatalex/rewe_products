@@ -41,6 +41,8 @@ from state_classifier import is_state_mismatch  # Frisch/TK/Konserve-Vorprüfung
                                                    # siehe state_classifier.py
 from color_classifier import is_color_mismatch  # Farb-Vorprüfung (post-CE Veto),
                                                    # siehe color_classifier.py
+from spice_form_classifier import is_form_mismatch  # Form-Vorprüfung (ganz vs.
+                                                   # gemahlen), siehe spice_form_classifier.py
 from ingredient_preprocessing import dedup_key  # form-bewusster Dedup-Schlüssel
                                                    # (normalize + Form-Tag), trennt
                                                    # frisch/Dose/getrocknet
@@ -59,10 +61,17 @@ RRF_K = 60  # Reciprocal-Rank-Fusion-Konstante, wie im Candidate-Benchmark
 # ---------------------------------------------------------------------------
 
 _UNITS = (
-    r"\b(g|kg|mg|ml|l|el|tl|msp\.?|stück|stk\.?|prise[n]?|becher|dose[n]?|"
-    r"pck\.?|packung(en)?|päckchen|zehe\/n|zehe[n]?|bund|scheibe[n]?|"
-    r"m\.-große[snr]?|gr\.|kl\.|große[snr]?|kleine[snr]?|etwas|evtl\.?|"
-    r"ca\.?|nach belieben)\b"
+    # Einheiten am Zutatenanfang. (?:/[a-zäöüß]+)? schluckt den
+    # Chefkoch-Plural-Slash ("Dose/n", "Tasse/n", "Zehe/n"), sonst bliebe
+    # ein verwaistes "n" am Namen kleben ("/n Linsen"). Das abschließende
+    # (?![a-zäöüß]) statt \b schützt Komposita ("Blattspinat", "Glasnudeln")
+    # und lässt zugleich Abkürzungen mit Punkt zu ("kl.", "gr.", "evtl.").
+    r"\b(?:g|kg|mg|ml|l|el|tl|msp|msl|stück|stk|prise[n]?|becher|dose[n]?|"
+    r"tasse[n]?|stange[n]?|tüte[n]?|tube[n]?|knolle[n]?|kugel[n]?|flasche[n]?|"
+    r"kopf|köpfe|glas|gläser|blatt|blätter|tropfen|handvoll|"
+    r"pck|packung(?:en)?|päckchen|zehe[n]?|scheibe[n]?|bund|"
+    r"m\.-große[snr]?|gr|kl|große[snr]?|kleine[snr]?|etwas|evtl|ca|"
+    r"nach belieben)(?:/[a-zäöüß]+)?\.?(?![a-zäöüß])"
 )
 
 def normalize(text: str) -> str:
@@ -80,6 +89,110 @@ def normalize(text: str) -> str:
 
 def lexical_score(a: str, b: str) -> float:
     return max(fuzz.token_set_ratio(a, b), fuzz.partial_ratio(a, b))
+
+
+# ---------------------------------------------------------------------------
+# GBM Feature Extraction  (Stage B: CE-Score + explizite Features)
+# ---------------------------------------------------------------------------
+
+_GRAMMAGE_RE = re.compile(
+    r'(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|stück|stk)\b', re.IGNORECASE
+)
+_GBM_STOPWORDS = {
+    'der', 'die', 'das', 'und', 'mit', 'für', 'aus', 'ein', 'eine',
+    'von', 'im', 'in', 'auf', 'g', 'kg', 'ml', 'l', 'stück', 'stk', 'ca',
+}
+
+def _gbm_normalize(text: str) -> str:
+    text = str(text).lower()
+    text = text.replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue').replace('ß', 'ss')
+    return re.sub(r'[^a-z0-9,. ]', ' ', text)
+
+def _gbm_tokenize(text: str) -> set:
+    tokens = re.findall(r'[a-z0-9]+', _gbm_normalize(text))
+    return {t for t in tokens if t not in _GBM_STOPWORDS and len(t) > 1}
+
+def _extract_grammage(text: str) -> set:
+    text = str(text).lower().replace(',', '.')
+    result = set()
+    for amount, unit in _GRAMMAGE_RE.findall(text):
+        try:
+            val = float(amount)
+        except ValueError:
+            continue
+        unit = unit.lower()
+        if unit == 'kg':
+            result.add((round(val * 1000, 1), 'mass'))
+        elif unit == 'g':
+            result.add((round(val, 1), 'mass'))
+        elif unit == 'l':
+            result.add((round(val * 1000, 1), 'vol'))
+        elif unit == 'ml':
+            result.add((round(val, 1), 'vol'))
+        elif unit in ('stück', 'stk'):
+            result.add((round(val, 1), 'count'))
+    return result
+
+def _jaccard(a: set, b: set) -> float:
+    if not a or not b:
+        return 0.0
+    union = len(a | b)
+    return len(a & b) / union if union else 0.0
+
+def build_gbm_feature_vector(
+    ingredient: str,
+    product_name: str,
+    product_category: str,
+    ing_emb: np.ndarray,
+    prod_emb: np.ndarray,
+    ce_score: float,
+) -> list:
+    """Baut den Feature-Vektor für ein (Zutat, Produkt)-Paar.
+
+    Reihenfolge muss exakt der Trainings-Reihenfolge aus lgbm_stage_b_config.json
+    entsprechen:
+      fuzzy_token_sort, fuzzy_token_set, fuzzy_partial, fuzzy_wratio,
+      token_overlap_jaccard, token_overlap_count,
+      ing_token_count, cand_token_count, len_ratio,
+      grammage_match, grammage_present_ing, grammage_present_cand,
+      category_ingredient_overlap_jaccard, category_token_count,
+      first_word_match, biencoder_cosine, ce_score
+    """
+    ing_tok  = _gbm_tokenize(ingredient)
+    cand_tok = _gbm_tokenize(product_name)
+    cat_tok  = _gbm_tokenize(product_category)
+
+    ing_g  = _extract_grammage(ingredient)
+    cand_g = _extract_grammage(product_name)
+    if ing_g and cand_g:
+        grammage_match = int(bool(ing_g & cand_g))
+    else:
+        grammage_match = -1  # nicht auswertbar
+
+    biencoder_cosine = float(np.dot(ing_emb, prod_emb))  # beide bereits L2-normiert
+
+    ing_first  = _gbm_normalize(ingredient).split()[0] if ingredient.strip() else ''
+    cand_first = _gbm_normalize(product_name).split()[0] if product_name.strip() else ''
+
+    return [
+        fuzz.token_sort_ratio(ingredient, product_name),
+        fuzz.token_set_ratio(ingredient, product_name),
+        fuzz.partial_ratio(ingredient, product_name),
+        fuzz.WRatio(ingredient, product_name),
+        _jaccard(ing_tok, cand_tok),
+        len(ing_tok & cand_tok),
+        len(ing_tok),
+        len(cand_tok),
+        len(product_name) / max(len(ingredient), 1),
+        grammage_match,
+        int(bool(ing_g)),
+        int(bool(cand_g)),
+        _jaccard(ing_tok, cat_tok),
+        len(cat_tok),
+        int(ing_first == cand_first and ing_first != ''),
+        biencoder_cosine,
+        ce_score,
+    ]
 
 
 def lexical_scores_all(ing_norm: str, product_norms: list[str]) -> np.ndarray:
@@ -311,6 +424,7 @@ def load_recipes_from_matched(path: Path) -> list[dict]:
 # CE-Inferenz auf allen unveraenderten Paaren.
 
 import hashlib
+import lightgbm as lgb
 
 
 def product_catalog_hash(products: list[dict]) -> str:
@@ -431,6 +545,8 @@ def match(
     top_k: int,
     batch_size: int,
     use_cache: bool = True,
+    gbm_model: lgb.Booster | None = None,
+    gbm_threshold: float = 0.5,
 ) -> list[dict]:
     product_texts = [build_product_text(p) for p in products]
     product_norms = [normalize(pt) for pt in product_texts]
@@ -492,6 +608,19 @@ def match(
             ).astype(np.float32)
             np.save(emb_cache_path, product_dense_emb)
             emb_meta_path.write_text(json.dumps({"sig": catalog_sig}))
+
+        # ── Zutaten-Embeddings (Batch, für GBM-Stage-B-Features) ──────────
+        # Nur berechnen wenn GBM aktiv; andernfalls unnötiger Overhead.
+        ing_emb_by_key: dict[str, np.ndarray] = {}
+        if gbm_model is not None:
+            print("Berechne Zutaten-Embeddings für GBM-Features (Batch)...")
+            emb_keys  = list(active_keys)
+            emb_texts = [norm_to_query[k] for k in emb_keys]
+            emb_vecs  = dense_model.encode(
+                emb_texts, batch_size=128, normalize_embeddings=True,
+                show_progress_bar=True,
+            ).astype(np.float32)
+            ing_emb_by_key = dict(zip(emb_keys, emb_vecs))
 
         # ── Frisches Hybrid-Retrieval fuer ALLE aktiven Zutaten ──
         # Der Kandidaten-Cache haengt am vollen Katalog-Hash: jede Katalog-
@@ -593,29 +722,45 @@ def match(
         # ── Ergebnisse je Zutat aus (gecachten + neuen) Scores bilden ──
         for key in active_keys:
             raw_ingredient = norm_to_raw[key]
+            ing_norm_text  = norm_to_query[key]
             cached = pair_scores[key]
             scored = [(cached[product_ids[pi]], pi)
                       for pi in candidates_by_key[key]
                       if product_ids[pi] in cached]
             matches = []
             for sc, prod_idx in sorted(scored, reverse=True):
-                if sc < threshold:
-                    continue
-                p = products[prod_idx]
-                cat = p.get("cat2") or p.get("cat1") or ""
+                # ── Stage B: GBM-Filter (wenn geladen) ────────────────────
+                # GBM bewertet das Paar auf Basis von CE-Score + expliziten
+                # Features. Liegt der GBM-Score unter dem GBM-Threshold,
+                # wird das Paar verworfen — auch wenn sc > ce_threshold wäre.
+                # Liegt kein GBM vor, fällt die Pipeline auf den CE-Threshold
+                # zurück (identisches Verhalten wie bisher).
+                if gbm_model is not None:
+                    p = products[prod_idx]
+                    cat = p.get("cat2") or p.get("cat1") or ""
+                    feat = build_gbm_feature_vector(
+                        ingredient=ing_norm_text,
+                        product_name=p["name"],
+                        product_category=cat,
+                        ing_emb=ing_emb_by_key[key],
+                        prod_emb=product_dense_emb[prod_idx],
+                        ce_score=sc,
+                    )
+                    gbm_score = float(gbm_model.predict([feat])[0])
+                    if gbm_score < gbm_threshold:
+                        continue
+                else:
+                    if sc < threshold:
+                        continue
+                    p = products[prod_idx]
+                    cat = p.get("cat2") or p.get("cat1") or ""
+                # ── Post-CE-Veto-Classifier (unverändert) ─────────────────
                 if is_state_mismatch(raw_ingredient, p["name"], cat):
-                    continue  # Frisch/TK/Konserve passt nicht -- trotz
-                              # CE-Score über Threshold ablehnen (siehe
-                              # state_classifier.py; validiert: faengt ca.
-                              # 30% der bekannten False Positives, bei
-                              # 2.5% Risiko auf bereits ueber-Threshold-
-                              # liegende echte Treffer)
+                    continue
                 if is_color_mismatch(raw_ingredient, p["name"]):
-                    continue  # expliziter Farbwiderspruch (z.B. Zutat weiß,
-                              # Produkt rot) -- trotz hohem CE-Score ablehnen
-                              # (siehe color_classifier.py; konservativ: blockt
-                              # nur wenn beide Seiten widersprechende Farben
-                              # tragen)
+                    continue
+                if is_form_mismatch(raw_ingredient, p["name"]):
+                    continue
                 matches.append(p["id"])
             norm_to_match[key] = matches if matches else None
 
@@ -674,6 +819,10 @@ def main() -> None:
     ap.add_argument("--no-reuse",   action="store_true",
                     help="Per-Paar-CE-Cache ignorieren, alle Paare neu durch "
                          "den Cross Encoder")
+    ap.add_argument("--gbm-model",  type=Path, default=None,
+                    help="Pfad zum LightGBM Stage-B-Modell (lgbm_stage_b.txt). "
+                         "Optional: ohne diesen Parameter läuft die Pipeline "
+                         "wie bisher nur mit CE-Threshold.")
     ap.add_argument("--from-matched", action="store_true",
                     help="Eingabe aus committeten Artefakten statt Rohdaten: "
                          "Rezepte aus matched_recipes.json (nur BEKANNTE Rezepte, "
@@ -716,8 +865,21 @@ def main() -> None:
 
     if args.no_reuse:
         print("--no-reuse: Per-Paar-CE-Cache wird ignoriert (volle Neuberechnung).")
+
+    gbm_model     = None
+    gbm_threshold = 0.5
+    if args.gbm_model is not None:
+        if not args.gbm_model.exists():
+            raise FileNotFoundError(f"GBM-Modell nicht gefunden: {args.gbm_model}")
+        gbm_model = lgb.Booster(model_file=str(args.gbm_model))
+        gbm_cfg_path = args.gbm_model.parent / "lgbm_stage_b_config.json"
+        if gbm_cfg_path.exists():
+            gbm_threshold = json.loads(gbm_cfg_path.read_text())["threshold"]
+        print(f"GBM Stage B geladen: {args.gbm_model} | Threshold: {gbm_threshold:.4f}")
+
     matched = match(recipes, products, model, args.model, threshold,
-                    args.top_k, args.batch_size, use_cache=not args.no_reuse)
+                    args.top_k, args.batch_size, use_cache=not args.no_reuse,
+                    gbm_model=gbm_model, gbm_threshold=gbm_threshold)
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(matched, f, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
