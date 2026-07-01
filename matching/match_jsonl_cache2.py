@@ -271,7 +271,9 @@ def get_candidates_hybrid(
 #    "paprikapulver", "fett", "margarine",
 #}
 
-PANTRY = set()
+#PANTRY = set()
+
+PANTRY = {"wasser"}
 
 def is_pantry(norm: str) -> bool:
     tokens = set(norm.split())
