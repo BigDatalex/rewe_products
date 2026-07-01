@@ -86,6 +86,15 @@ _MEIST_KONSERVE_ODER_TK = {
     "bohnen", "kichererbsen", "mais", "maiskörner", "zuckermais", "erbsen",
     "bambussprossen", "bambussprosse", "champignons", "linsen", "spargel",
     "schwarzwurzel", "pfirsich", "ananas", "paprika", "rosenkohl",
+    # Gurke/Gewuerzgurke: im Rezeptkontext fast immer das eingelegte
+    # Konserven-/Glasprodukt ("Gewürzgurken" stehen in Kategorie
+    # "GemüseKONSERVEn"). Ohne diesen Eintrag fiel "Gewürzgurke(n),
+    # gewürfelte" auf Regel-8-Fallback {frisch, tk} und blockte alle
+    # Konserven-Gurken faelschlich (6 verlorene Treffer im Test-Split
+    # lauf22, alle CE-Score ~0.99). "gurke" deckt per Teilstring auch
+    # "gewürzgurke"/"salzgurke" ab. Frische Salatgurke bleibt ueber
+    # frisch/tk in der Menge weiter plausibel.
+    "gurke",
 }
 
 # Fischfilets/Filets allgemein: sowohl frisch als auch TK marktueblich.
@@ -208,6 +217,10 @@ if __name__ == "__main__":
         ("Pfeffer, weiß", "Pfeffer weiß gemahlen 100g", "Pfeffer"),
         ("Lachsfilet(s)", "Lachsfilets 420g", "Tiefkühl-Fischfilets"),
         ("Tomatenmark", "Oro di Parma Tomatenmark mit Knoblauch 200g", "Tomatenmark"),
+        # Gewuerzgurke: Konserven-/Glasprodukt, darf NICHT geblockt werden
+        # (Regression lauf22 -- ohne "gurke" in _MEIST_KONSERVE_ODER_TK fiel
+        # dies auf {frisch, tk} und blockte alle Konserven-Gurken faelschlich).
+        ("Gewürzgurke(n), gewürfelte", "Kühne Gewürzgurken 360g", "Gemüsekonserven"),
     ]
     print(f"{'Zutat':25} {'Zutat-States':40} {'Produkt':35} {'Prod-State':12} Mismatch")
     for ing, prod, cat in test_cases:
